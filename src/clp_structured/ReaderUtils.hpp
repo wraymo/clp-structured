@@ -1,5 +1,5 @@
-#ifndef CLP_STRUCTURED__READERUTILS_HPP
-#define CLP_STRUCTURED__READERUTILS_HPP
+#ifndef CLP_STRUCTURED_READERUTILS_HPP
+#define CLP_STRUCTURED_READERUTILS_HPP
 
 #include "DictionaryReader.hpp"
 #include "SchemaReader.hpp"
@@ -115,4 +115,4 @@ public:
 };
 }  // namespace clp_structured
 
-#endif  // CLP_STRUCTURED__READERUTILS_HPP
+#endif  // CLP_STRUCTURED_READERUTILS_HPP

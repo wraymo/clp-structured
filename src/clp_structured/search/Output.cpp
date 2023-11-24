@@ -12,6 +12,7 @@
 #include "OrExpr.hpp"
 #include "SearchUtils.hpp"
 #include "src/clp_structured/FileWriter.hpp"
+#include "src/clp_structured/Profiler.hpp"
 #include "src/clp_structured/ReaderUtils.hpp"
 #include "src/clp_structured/Utils.hpp"
 
@@ -57,8 +58,12 @@ namespace clp_structured { namespace search {
             m_var_dict = ReaderUtils::get_variable_dictionary_reader(archive);
             m_log_dict = ReaderUtils::get_log_type_dictionary_reader(archive);
             //        array_dict_ = GetArrayDictionaryReader(archive);
+            ProfilerManager::start(ProfilingStage::ReadVariableDictionary);
             m_var_dict->read_new_entries();
+            ProfilerManager::stop(ProfilingStage::ReadVariableDictionary);
+            ProfilerManager::start(ProfilingStage::ReadLogTypeDictionary);
             m_log_dict->read_new_entries();
+            ProfilerManager::stop(ProfilingStage::ReadLogTypeDictionary);
 
             if (has_array) {
                 m_array_dict = ReaderUtils::get_array_dictionary_reader(archive);
@@ -97,6 +102,7 @@ namespace clp_structured { namespace search {
 
                 SchemaReader reader(m_schema_tree, schema_id);
                 reader.open(archive + "/encoded_messages/" + std::to_string(schema_id));
+                ProfilerManager::start(ProfilingStage::ReadEncodedTable);
                 ReaderUtils::append_reader_columns(
                         &reader,
                         (*m_schemas)[schema_id],
@@ -107,6 +113,7 @@ namespace clp_structured { namespace search {
                         m_timestamp_dict
                 );
                 reader.load();
+                ProfilerManager::stop(ProfilingStage::ReadEncodedTable);
 
                 reader.initialize_filter(this);
                 while (reader.get_next_message(message, this)) {
@@ -878,6 +885,7 @@ namespace clp_structured { namespace search {
                 }
 
                 // search on log type dictionary
+                ProfilerManager::start(ProfilingStage::SearchLogTypeDictionary);
                 Query& q = m_string_query_map[query_string];
                 if (query_string.find("*") != std::string::npos
                     || filter->get_column()->matches_type(LiteralType::VarStringT))
@@ -889,6 +897,7 @@ namespace clp_structured { namespace search {
                 } else {
                     Grep::process_raw_query(m_log_dict, m_var_dict, query_string, false, q);
                 }
+                ProfilerManager::stop(ProfilingStage::SearchLogTypeDictionary);
             }
             SubQuery sub_query;
             if (filter->get_column()->matches_type(LiteralType::VarStringT)) {
@@ -898,6 +907,8 @@ namespace clp_structured { namespace search {
                     return;
                 }
 
+                // search on variable dictionary
+                ProfilerManager::start(ProfilingStage::SearchVariableDictionary);
                 std::unordered_set<int64_t>& matching_vars = m_string_var_match_map[query_string];
                 if (query_string.find('*') == std::string::npos) {
                     auto entry = m_var_dict->get_entry_matching_value(query_string, false);
@@ -926,6 +937,7 @@ namespace clp_structured { namespace search {
                         }
                     }
                 }
+                ProfilerManager::stop(ProfilingStage::SearchVariableDictionary);
             }
         }
     }

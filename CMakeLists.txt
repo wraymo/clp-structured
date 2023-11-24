@@ -46,6 +46,12 @@ add_subdirectory(submodules/spdlog EXCLUDE_FROM_ALL)
 
 add_subdirectory(src/clp_structured/search)
 
+option(ENABLE_PROFILING "Enable profiler" ON)
+
+if (ENABLE_PROFILING)
+    add_definitions(-DENABLE_PROFILING=1)
+endif ()
+
 add_library(clp-s-archive
         src/clp_structured/ArchiveReader.cpp
         src/clp_structured/ArchiveReader.hpp
@@ -81,6 +87,8 @@ add_library(clp-s-archive
         src/clp_structured/JsonParser.hpp
         src/clp_structured/ParsedMessage.cpp
         src/clp_structured/ParsedMessage.hpp
+        src/clp_structured/Profiler.cpp
+        src/clp_structured/Profiler.hpp
         src/clp_structured/ReaderUtils.cpp
         src/clp_structured/ReaderUtils.hpp
         src/clp_structured/SchemaMap.cpp

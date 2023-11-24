@@ -1,6 +1,7 @@
 #include "CommandLineArguments.hpp"
 #include "JsonConstructor.hpp"
 #include "JsonParser.hpp"
+#include "Profiler.hpp"
 #include "ReaderUtils.hpp"
 #include "search/ConvertToExists.hpp"
 #include "search/EmptyExpr.hpp"
@@ -15,6 +16,8 @@
 #include "Utils.hpp"
 
 using namespace clp_structured::search;
+using clp_structured::ProfilerManager;
+using clp_structured::ProfilingStage;
 
 int main(int argc, char const* argv[]) {
     try {
@@ -25,6 +28,8 @@ int main(int argc, char const* argv[]) {
         // NOTE: We can't log an exception if the logger couldn't be constructed
         return -1;
     }
+
+    ProfilerManager::start(ProfilingStage::Total);
 
     CommandLineArguments command_line_arguments("clp-s");
     auto parsing_result = command_line_arguments.parse_arguments(argc, argv);
@@ -80,6 +85,7 @@ int main(int argc, char const* argv[]) {
             return 1;
         }
 
+        ProfilerManager::start(ProfilingStage::TransformQuery);
         OrOfAndForm standardize_pass;
         if (expr = standardize_pass.run(expr); std::dynamic_pointer_cast<EmptyExpr>(expr)) {
             SPDLOG_ERROR("Query '{}' is logically false", query);
@@ -107,8 +113,13 @@ int main(int argc, char const* argv[]) {
             return 1;
         }
 
+        ProfilerManager::start(ProfilingStage::ReadSchemaTree);
         auto schema_tree = clp_structured::ReaderUtils::read_schema_tree(archive_dir);
+        ProfilerManager::stop(ProfilingStage::ReadSchemaTree);
+
+        ProfilerManager::start(ProfilingStage::ReadSchemaMap);
         auto schemas = clp_structured::ReaderUtils::read_schemas(archive_dir);
+        ProfilerManager::stop(ProfilingStage::ReadSchemaMap);
 
         // Narrow against schemas
         SchemaMatch match_pass(schema_tree, schemas);
@@ -116,11 +127,14 @@ int main(int argc, char const* argv[]) {
             SPDLOG_ERROR("No matching schemas for query '{}'", query);
             return 1;
         }
-
+        ProfilerManager::stop(ProfilingStage::TransformQuery);
         // output result
         Output output(schema_tree, schemas, match_pass, expr, archive_dir, timestamp_dict);
         output.filter();
     }
+
+    ProfilerManager::stop(ProfilingStage::Total);
+    ProfilerManager::print_elapsed_time();
 
     return 0;
 }

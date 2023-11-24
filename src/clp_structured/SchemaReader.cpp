@@ -1,5 +1,7 @@
 #include "SchemaReader.hpp"
 
+#include "Profiler.hpp"
+
 namespace clp_structured {
 void SchemaReader::open(std::string path) {
     m_path = std::move(path);
@@ -81,11 +83,15 @@ bool SchemaReader::get_next_message(std::string& message) {
 
 bool SchemaReader::get_next_message(std::string& message, FilterClass* filter) {
     while (m_cur_message < m_num_messages) {
-        if (false == filter->filter(m_cur_message, m_extracted_values)) {
+        ProfilerManager::start(ProfilingStage::ScanAndFilter);
+        bool ret = filter->filter(m_cur_message, m_extracted_values);
+        ProfilerManager::stop(ProfilingStage::ScanAndFilter);
+        if (false == ret) {
             m_cur_message++;
             continue;
         }
 
+        ProfilerManager::start(ProfilingStage::MarshalResults);
         for (auto& column : m_columns) {
             std::string type = column->get_type();
             auto pointer = m_pointers[m_global_id_to_local_id[column->get_id()]];
@@ -112,6 +118,7 @@ bool SchemaReader::get_next_message(std::string& message, FilterClass* filter) {
         if (message.back() != '\n') {
             message += '\n';
         }
+        ProfilerManager::stop(ProfilingStage::MarshalResults);
 
         m_cur_message++;
         return true;
