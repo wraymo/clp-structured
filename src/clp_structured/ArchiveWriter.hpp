@@ -9,6 +9,7 @@
 #include <boost/uuid/uuid_io.hpp>
 
 #include "DictionaryWriter.hpp"
+#include "SchemaMap.hpp"
 #include "SchemaTree.hpp"
 #include "SchemaWriter.hpp"
 #include "TimestampDictionaryWriter.hpp"
@@ -35,11 +36,13 @@ public:
     // Constructor
     explicit ArchiveWriter(
             std::shared_ptr<SchemaTree> schema_tree,
-            std::shared_ptr<TimestampDictionaryWriter> timestamp_dict
+            std::shared_ptr<TimestampDictionaryWriter> timestamp_dict,
+            std::shared_ptr<SchemaMap>& schema_map
     )
             : m_encoded_message_size(0UL),
               m_schema_tree(std::move(schema_tree)),
-              m_timestamp_dict(std::move(timestamp_dict)) {}
+              m_timestamp_dict(std::move(timestamp_dict)),
+              m_schema_map(schema_map) {}
 
     /**
      * Opens the archive writer
@@ -88,6 +91,7 @@ private:
 
     std::shared_ptr<SchemaTree> m_schema_tree;
     std::map<int32_t, SchemaWriter*> m_schema_id_to_writer;
+    std::shared_ptr<SchemaMap> m_schema_map;
 };
 }  // namespace clp_structured
 

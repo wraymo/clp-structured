@@ -38,7 +38,8 @@ JsonParser::JsonParser(JsonParserOption const& option)
     archive_writer_option.id = m_generator();
     archive_writer_option.compression_level = option.compression_level;
 
-    m_archive_writer = std::make_unique<ArchiveWriter>(m_schema_tree, m_timestamp_dictionary);
+    m_archive_writer
+            = std::make_unique<ArchiveWriter>(m_schema_tree, m_timestamp_dictionary, m_schema_map);
     m_archive_writer->open(archive_writer_option);
 }
 
@@ -255,6 +256,12 @@ void JsonParser::store() {
     FileWriter schema_tree_writer;
     ZstdCompressor schema_tree_compressor;
 
+    // archive contents must be stored before anything else, because
+    // closing an archive can mute the MST and SchemaMap
+    // the mutation and storage steps can be easily separated if it becomes
+    // necessary for archive packing
+    m_archive_writer->close();
+
     schema_tree_writer.open(m_schema_tree_path, FileWriter::OpenMode::CreateForWriting);
     schema_tree_compressor.open(schema_tree_writer, m_compression_level);
 
@@ -289,6 +296,6 @@ void JsonParser::split_archive() {
 }
 
 void JsonParser::close() {
-    m_archive_writer->close();
+    return;
 }
 }  // namespace clp_structured

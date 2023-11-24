@@ -223,6 +223,7 @@ void ReaderUtils::append_reader_columns(
                 break;
             case NodeType::OBJECT:
             case NodeType::NULLVALUE:
+            case NodeType::VARVALUE:
                 reader->append_column(column);
                 break;
         }

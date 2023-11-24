@@ -47,6 +47,12 @@ public:
      */
     void close();
 
+    /**
+     * Updates the schema writer, potentially deleting and merging
+     * some columns
+     */
+    void update_schema(std::vector<std::pair<int32_t, int32_t>> const& udpates);
+
 private:
     FileWriter m_file_writer;
     ZstdCompressor m_compressor;

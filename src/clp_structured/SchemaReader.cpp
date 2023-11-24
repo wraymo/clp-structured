@@ -188,9 +188,14 @@ void SchemaReader::generate_json_template(json& object, int32_t id, std::string&
                 break;
             }
             case NodeType::VARSTRING: {
-                object[key] = "";
-                std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                if (child_node->get_children_ids().empty()) {
+                    object[key] = "";
+                    std::string json_pointer_string = get_json_pointer_string(key);
+                    m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                } else {
+                    object[key] = m_local_schema_tree->get_node(child_node->get_children_ids()[0])
+                                          ->get_key_name();
+                }
                 break;
             }
             case NodeType::DATESTRING: {

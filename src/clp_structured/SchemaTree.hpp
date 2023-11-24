@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "DictionaryWriter.hpp"
 
 namespace clp_structured {
 enum class NodeType : uint8_t {
@@ -20,7 +21,14 @@ enum class NodeType : uint8_t {
     ARRAY,
     NULLVALUE,
     DATESTRING,
-    FLOATDATESTRING
+    FLOATDATESTRING,
+    VARVALUE
+};
+
+enum class NodeValueState {
+    UNINITIALIZED,
+    CARDINALITY_ONE,
+    CARDINALITY_MANY
 };
 
 class SchemaNode {
@@ -33,7 +41,9 @@ public:
               m_id(id),
               m_key_name(std::move(key_name)),
               m_type(type),
-              m_count(0) {}
+              m_count(0),
+              m_value(0),
+              m_value_state(NodeValueState::UNINITIALIZED) {}
 
     /**
      * Getters
@@ -42,7 +52,7 @@ public:
 
     int32_t get_parent_id() const { return m_parent_id; }
 
-    std::vector<int32_t> get_children_ids() const { return m_children_ids; }
+    std::vector<int32_t> const& get_children_ids() const { return m_children_ids; }
 
     NodeType get_type() const { return m_type; }
 
@@ -61,6 +71,26 @@ public:
      */
     void add_child(int32_t child_id) { m_children_ids.push_back(child_id); }
 
+    void mark_node_value(uint64_t value);
+
+    /**
+     * Get the current state of this schema node.
+     * @return the current state
+     */
+    NodeValueState get_state() const { return m_value_state; }
+
+    /**
+     * Set the current state of this schema node.
+     * @param state
+     */
+    void set_state(NodeValueState state) { m_value_state = state; }
+
+    /**
+     * Get the value stored in this schema node if it is cardinality one.
+     * @return the value in this schema node
+     */
+    uint64_t get_var_value() const { return m_value; }
+
 private:
     int32_t m_id;
     int32_t m_parent_id;
@@ -68,6 +98,8 @@ private:
     std::string m_key_name;
     NodeType m_type;
     int32_t m_count;
+    uint64_t m_value;
+    NodeValueState m_value_state;
 };
 
 class SchemaTree {
@@ -88,7 +120,16 @@ public:
 
     int32_t get_root_node_id() { return m_nodes[0]->get_id(); }
 
-    std::vector<std::shared_ptr<SchemaNode>> get_nodes() { return m_nodes; }
+    std::vector<std::shared_ptr<SchemaNode>> const& get_nodes() const { return m_nodes; }
+
+    /**
+     * Scan through all nodes
+     *
+     * @return the list of nodes that have been changed, and their new IDs
+     */
+    std::vector<std::pair<int32_t, int32_t>> modify_nodes_based_on_frequency(
+            std::shared_ptr<VariableDictionaryWriter> var_dict
+    );
 
 private:
     std::vector<std::shared_ptr<SchemaNode>> m_nodes;

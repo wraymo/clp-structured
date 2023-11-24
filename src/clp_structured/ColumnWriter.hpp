@@ -6,6 +6,7 @@
 
 #include "DictionaryWriter.hpp"
 #include "FileWriter.hpp"
+#include "SchemaTree.hpp"
 #include "simdjson.h"
 #include "TimestampDictionaryWriter.hpp"
 #include "VariableEncoder.hpp"
@@ -17,7 +18,7 @@ namespace clp_structured {
 class BaseColumnWriter {
 public:
     // Constructor
-    explicit BaseColumnWriter(std::string name) : m_name(std::move(name)) {}
+    explicit BaseColumnWriter(std::string name, int32_t id) : m_name(std::move(name)), m_id(id) {}
 
     // Destructor
     virtual ~BaseColumnWriter() = default;
@@ -39,16 +40,23 @@ public:
     /**
      * @return Name of the column
      */
-    std::string get_name() { return m_name; }
+    std::string const& get_name() const { return m_name; }
+
+    /**
+     * @return Node Id of the column
+     */
+    int32_t get_id() const { return m_id; }
 
 protected:
     std::string m_name;
+    int32_t m_id;
 };
 
 class Int64ColumnWriter : public BaseColumnWriter {
 public:
     // Constructor
-    explicit Int64ColumnWriter(std::string name) : BaseColumnWriter(std::move(name)) {}
+    explicit Int64ColumnWriter(std::string name, int32_t id)
+            : BaseColumnWriter(std::move(name), id) {}
 
     // Destructor
     ~Int64ColumnWriter() override = default;
@@ -65,7 +73,8 @@ private:
 class FloatColumnWriter : public BaseColumnWriter {
 public:
     // Constructor
-    explicit FloatColumnWriter(std::string name) : BaseColumnWriter(std::move(name)) {}
+    explicit FloatColumnWriter(std::string name, int32_t id)
+            : BaseColumnWriter(std::move(name), id) {}
 
     // Destructor
     ~FloatColumnWriter() override = default;
@@ -82,7 +91,8 @@ private:
 class BooleanColumnWriter : public BaseColumnWriter {
 public:
     // Constructor
-    explicit BooleanColumnWriter(std::string name) : BaseColumnWriter(std::move(name)) {}
+    explicit BooleanColumnWriter(std::string name, int32_t id)
+            : BaseColumnWriter(std::move(name), id) {}
 
     // Destructor
     ~BooleanColumnWriter() override = default;
@@ -101,10 +111,11 @@ public:
     // Constructor
     ClpStringColumnWriter(
             std::string const& name,
+            int32_t id,
             std::shared_ptr<VariableDictionaryWriter> var_dict,
             std::shared_ptr<LogTypeDictionaryWriter> log_dict
     )
-            : BaseColumnWriter(name),
+            : BaseColumnWriter(name, id),
               m_var_dict(std::move(var_dict)),
               m_log_dict(std::move(log_dict)) {}
 
@@ -160,10 +171,13 @@ public:
     // Constructor
     VariableStringColumnWriter(
             std::string const& name,
-            std::shared_ptr<VariableDictionaryWriter> var_dict
+            int32_t id,
+            std::shared_ptr<VariableDictionaryWriter> var_dict,
+            std::shared_ptr<SchemaNode> schema_node
     )
-            : BaseColumnWriter(name),
-              m_var_dict(std::move(var_dict)) {}
+            : BaseColumnWriter(name, id),
+              m_var_dict(std::move(var_dict)),
+              m_schema_node(std::move(schema_node)) {}
 
     // Destructor
     ~VariableStringColumnWriter() override = default;
@@ -176,6 +190,7 @@ public:
 private:
     std::shared_ptr<VariableDictionaryWriter> m_var_dict;
     std::vector<int64_t> m_variables;
+    std::shared_ptr<SchemaNode> m_schema_node;
 };
 
 class DateStringColumnWriter : public BaseColumnWriter {
@@ -183,9 +198,10 @@ public:
     // Constructor
     DateStringColumnWriter(
             std::string const& name,
+            int32_t id,
             std::shared_ptr<TimestampDictionaryWriter> timestamp_dict
     )
-            : BaseColumnWriter(name),
+            : BaseColumnWriter(name, id),
               m_timestamp_dict(std::move(timestamp_dict)) {}
 
     // Destructor
@@ -208,9 +224,10 @@ public:
     // Constructor
     FloatDateStringColumnWriter(
             std::string const& name,
+            int32_t id,
             std::shared_ptr<TimestampDictionaryWriter> timestamp_dict
     )
-            : BaseColumnWriter(name),
+            : BaseColumnWriter(name, id),
               m_timestamp_dict(std::move(timestamp_dict)) {}
 
     // Destructor

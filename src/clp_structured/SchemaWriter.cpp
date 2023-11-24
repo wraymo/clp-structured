@@ -53,4 +53,29 @@ SchemaWriter::~SchemaWriter() {
         delete i;
     }
 }
+
+void SchemaWriter::update_schema(std::vector<std::pair<int32_t, int32_t>> const& updates) {
+    std::vector<BaseColumnWriter*> new_columns;
+    for (BaseColumnWriter* writer : m_columns) {
+        int32_t column_id = writer->get_id();
+        int32_t new_column_id = -1;
+        for (auto& update : updates) {
+            if (update.first == column_id) {
+                new_column_id = update.second;
+                break;
+            }
+        }
+
+        if (new_column_id != -1) {
+            // for now all updates are cardinality one updates
+            // which means we can simply remove the column
+            delete writer;
+            continue;
+        }
+        new_columns.push_back(writer);
+    }
+
+    m_columns = std::move(new_columns);
+}
+
 }  // namespace clp_structured
