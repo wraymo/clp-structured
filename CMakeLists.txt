@@ -47,7 +47,7 @@ add_subdirectory(submodules/spdlog EXCLUDE_FROM_ALL)
 add_subdirectory(src/clp_structured/search)
 
 option(ENABLE_PROFILING "Enable profiler" ON)
-
+message(STATUS "ENABLE_PROFILING: ${ENABLE_PROFILING}")
 if (ENABLE_PROFILING)
     add_definitions(-DENABLE_PROFILING=1)
 endif ()
