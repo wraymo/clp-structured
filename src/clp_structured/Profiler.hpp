@@ -31,22 +31,22 @@ public:
     /**
      * Starts the timer
      */
-    void start();
+    inline void start();
 
     /**
      * Stops the timer
      */
-    void stop();
+    inline void stop();
 
     /**
      * @return The elapsed time in milliseconds
      */
-    double get_elapsed_time() const;
+    inline double get_elapsed_time() const;
 
 private:
     std::chrono::time_point<std::chrono::high_resolution_clock> m_start;
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stop;
-    std::chrono::duration<double> m_elapsed_time;
+    std::chrono::duration<double> m_elapsed_time{};
 };
 
 class ProfilerManager {
@@ -70,12 +70,12 @@ public:
     static void stop(ProfilingStage stage);
 
     /**
-     * @return The elapsed time in milliseconds for the given profiling stage
+     * @return The elapsed time in seconds for the given profiling stage
      */
     static double get_elapsed_time(ProfilingStage stage);
 
     /**
-     * @return The elapsed time in milliseconds for all profiling stages
+     * Print the elapsed time in seconds for all profiling stages
      */
     static void print_elapsed_time();
 
