@@ -129,8 +129,11 @@ int main(int argc, char const* argv[]) {
         }
         ProfilerManager::stop(ProfilingStage::TransformQuery);
         // output result
+
+        ProfilerManager::start(ProfilingStage::OutputClass);
         Output output(schema_tree, schemas, match_pass, expr, archive_dir, timestamp_dict);
         output.filter();
+        ProfilerManager::stop(ProfilingStage::OutputClass);
     }
 
     ProfilerManager::stop(ProfilingStage::Total);
