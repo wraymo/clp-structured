@@ -77,6 +77,7 @@ namespace clp_structured { namespace search {
         std::map<ColumnDescriptor*, std::vector<int32_t>> m_wildcard_to_searched_datestrings;
         std::map<ColumnDescriptor*, std::vector<int32_t>> m_wildcard_to_searched_floatdatestrings;
         std::map<ColumnDescriptor*, std::vector<int32_t>> m_wildcard_to_searched_columns;
+        std::vector<int32_t> m_var_value_columns;
 
         simdjson::ondemand::parser m_array_parser;
         std::string m_array_search_string;
@@ -307,10 +308,16 @@ namespace clp_structured { namespace search {
         );
 
         /**
-         * Populates the string queries
-         * @param expr
+         * Populates the string queries for the given search string for the
+         * current segment. Each call will perform relevant dictionary searches
+         * a single time for each unique search string passed to this function.
+         *
+         * This allows us to dynamically perform necessary searches during constant
+         * propagation for each table, potentially skipping some dictionary searches.
+         *
+         * @param query_string
          */
-        void populate_string_queries(std::shared_ptr<Expression> const& expr);
+        void populate_string_queries(std::string const& query_string);
 
         /**
          * Constant propagates an expression

@@ -25,6 +25,7 @@ namespace clp_structured { namespace search {
             case NodeType::CLPSTRING:
                 return LiteralType::ClpStringT;
             case NodeType::VARSTRING:
+            case NodeType::VARVALUE:
                 return LiteralType::VarStringT;
             case NodeType::BOOLEAN:
                 return LiteralType::BooleanT;
