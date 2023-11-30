@@ -42,7 +42,7 @@ void ArchiveWriter::open(ArchiveWriterOption const& option) {
 }
 
 void ArchiveWriter::close() {
-    auto changed_nodes = m_schema_tree->modify_nodes_based_on_frequency(m_var_dict);
+    auto changed_nodes = m_schema_tree->modify_nodes_based_on_frequency();
     m_var_dict->close();
     m_log_dict->close();
     m_array_dict->close();

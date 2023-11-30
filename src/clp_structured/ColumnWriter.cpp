@@ -87,7 +87,7 @@ void VariableStringColumnWriter::add_value(
     uint64_t id;
     m_var_dict->add_entry(string_var, id);
     m_variables.push_back(id);
-    m_schema_node->mark_node_value(id);
+    m_schema_node->mark_node_value(id, string_var);
 }
 
 void VariableStringColumnWriter::store(ZstdCompressor& compressor) {

@@ -71,7 +71,7 @@ public:
      */
     void add_child(int32_t child_id) { m_children_ids.push_back(child_id); }
 
-    void mark_node_value(uint64_t value);
+    void mark_node_value(uint64_t value, std::string const& string_value);
 
     /**
      * Get the current state of this schema node.
@@ -91,6 +91,12 @@ public:
      */
     uint64_t get_var_value() const { return m_value; }
 
+    /**
+     * Get the string value stored in this schema node if it is cardinality one.
+     * @return the string value in this schema node
+     */
+    std::string const& get_string_var_value() const { return m_string_value; }
+
 private:
     int32_t m_id;
     int32_t m_parent_id;
@@ -99,6 +105,7 @@ private:
     NodeType m_type;
     int32_t m_count;
     uint64_t m_value;
+    std::string m_string_value;
     NodeValueState m_value_state;
 };
 
@@ -127,9 +134,7 @@ public:
      *
      * @return the list of nodes that have been changed, and their new IDs
      */
-    std::vector<std::pair<int32_t, int32_t>> modify_nodes_based_on_frequency(
-            std::shared_ptr<VariableDictionaryWriter> var_dict
-    );
+    std::vector<std::pair<int32_t, int32_t>> modify_nodes_based_on_frequency();
 
 private:
     std::vector<std::shared_ptr<SchemaNode>> m_nodes;

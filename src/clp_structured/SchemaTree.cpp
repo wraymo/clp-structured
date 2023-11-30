@@ -3,10 +3,11 @@
 #include <stack>
 
 namespace clp_structured {
-void SchemaNode::mark_node_value(uint64_t value) {
+void SchemaNode::mark_node_value(uint64_t value, std::string const& string_value) {
     switch (m_value_state) {
         case NodeValueState::UNINITIALIZED:
             m_value = value;
+            m_string_value = string_value;
             m_value_state = NodeValueState::CARDINALITY_ONE;
             break;
         case NodeValueState::CARDINALITY_ONE:
@@ -41,9 +42,7 @@ int32_t SchemaTree::add_node(int32_t parent_node_id, NodeType type, std::string 
     return node_id;
 }
 
-std::vector<std::pair<int32_t, int32_t>> SchemaTree::modify_nodes_based_on_frequency(
-        std::shared_ptr<VariableDictionaryWriter> var_dict
-) {
+std::vector<std::pair<int32_t, int32_t>> SchemaTree::modify_nodes_based_on_frequency() {
     int32_t root_node_id = get_root_node_id();
     auto root_node = get_node(root_node_id);
 
@@ -67,11 +66,7 @@ std::vector<std::pair<int32_t, int32_t>> SchemaTree::modify_nodes_based_on_frequ
         auto node = get_node(*it);
 
         if (node->get_state() == NodeValueState::CARDINALITY_ONE) {
-            int32_t var_node_id = add_node(
-                    *it,
-                    NodeType::VARVALUE,
-                    var_dict->get_value_for_id(node->get_var_value())
-            );
+            int32_t var_node_id = add_node(*it, NodeType::VARVALUE, node->get_string_var_value());
             updates.push_back({*it, var_node_id});
             ++it;
             continue;
