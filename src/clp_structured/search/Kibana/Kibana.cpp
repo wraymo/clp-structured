@@ -89,7 +89,7 @@ namespace clp_structured { namespace search { namespace Kibana {
             } else if (auto ret = NullLiteral::create_from_string(token)) {
                 return ret;
             } else {
-                return StringLiteral::create(token);
+                return StringLiteral::create(StringUtils::clean_up_wildcard_search_string(token));
             }
         }
 
