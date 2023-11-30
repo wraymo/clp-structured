@@ -1,6 +1,3 @@
-[submodule "submodules/nlohmann_json"]
-	path = submodules/nlohmann_json
-	url = https://github.com/nlohmann/json.git
 [submodule "submodules/simdjson"]
 	path = submodules/simdjson
 	url = https://github.com/simdjson/simdjson.git
@@ -13,3 +10,9 @@
 [submodule "submodules/abseil-cpp"]
 	path = submodules/abseil-cpp
 	url = https://github.com/abseil/abseil-cpp.git
+[submodule "submodules/yyjson"]
+	path = submodules/yyjson
+	url = https://github.com/ibireme/yyjson.git
+[submodule "submodules/mimalloc"]
+	path = submodules/mimalloc
+	url = https://github.com/microsoft/mimalloc.git

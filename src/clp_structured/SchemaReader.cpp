@@ -1,5 +1,7 @@
 #include "SchemaReader.hpp"
 
+#include "mimalloc.h"
+
 namespace clp_structured {
 void SchemaReader::open(std::string path) {
     m_path = std::move(path);
@@ -41,7 +43,7 @@ void SchemaReader::load() {
     m_file_reader.close();
 
     std::string root_string = "/";
-    generate_json_template(m_template, 0, root_string);
+    generate_json_template(0, root_string);
 }
 
 bool SchemaReader::get_next_message(std::string& message) {
@@ -56,20 +58,44 @@ bool SchemaReader::get_next_message(std::string& message) {
         auto pointer = m_pointers[m_global_id_to_local_id[column->get_id()]];
 
         if (type == "string") {
-            m_template[pointer] = std::get<std::string>(column->extract_value(m_cur_message));
+            yyjson_mut_doc_ptr_set(
+                    m_doc,
+                    pointer.c_str(),
+                    yyjson_mut_str(
+                            m_doc,
+                            std::get<std::string>(column->extract_value(m_cur_message)).c_str()
+                    )
+            );
         } else if (type == "int") {
-            m_template[pointer] = std::get<int64_t>(column->extract_value(m_cur_message));
+            yyjson_mut_doc_ptr_set(
+                    m_doc,
+                    pointer.c_str(),
+                    yyjson_mut_int(m_doc, std::get<int64_t>(column->extract_value(m_cur_message)))
+            );
         } else if (type == "float") {
-            m_template[pointer] = std::get<double>(column->extract_value(m_cur_message));
+            yyjson_mut_doc_ptr_set(
+                    m_doc,
+                    pointer.c_str(),
+                    yyjson_mut_real(m_doc, std::get<double>(column->extract_value(m_cur_message)))
+            );
         } else if (type == "bool") {
-            m_template[pointer] = std::get<uint8_t>(column->extract_value(m_cur_message)) != 0;
+            yyjson_mut_doc_ptr_set(
+                    m_doc,
+                    pointer.c_str(),
+                    yyjson_mut_bool(
+                            m_doc,
+                            std::get<uint8_t>(column->extract_value(m_cur_message)) != 0
+                    )
+            );
         } else if (type == "array") {
-            m_template[pointer]
-                    = json::parse(std::get<std::string>(column->extract_value(m_cur_message)));
+            std::string json_string = std::get<std::string>(column->extract_value(m_cur_message));
+            yyjson_doc* doc = yyjson_read(json_string.c_str(), json_string.length(), 0);
+            yyjson_val* root = yyjson_doc_get_root(doc);
+            yyjson_mut_doc_ptr_set(m_doc, pointer.c_str(), yyjson_val_mut_copy(m_doc, root));
         }
     }
 
-    message = m_template.dump();
+    message = yyjson_mut_write(m_doc, 0, nullptr);
 
     if (message.back() != '\n') {
         message += '\n';
@@ -78,6 +104,30 @@ bool SchemaReader::get_next_message(std::string& message) {
     m_cur_message++;
     return true;
 }
+
+// same as malloc(size)
+static void* priv_malloc(void* ctx, size_t size) {
+    return mi_malloc(size);
+}
+
+// same as realloc(ptr, size)
+// `old_size` is the size of the originally allocated memory
+static void* priv_realloc(void* ctx, void* ptr, size_t old_size, size_t size) {
+    return mi_realloc(ptr, size);
+}
+
+// same as free(ptr)
+static void priv_free(void* ctx, void* ptr) {
+    mi_free(ptr);
+}
+
+// the allocator object
+static yyjson_alc const PRIV_ALC = {
+        priv_malloc,
+        priv_realloc,
+        priv_free,
+        NULL  // `ctx` which will be passed into the functions above
+};
 
 bool SchemaReader::get_next_message(std::string& message, FilterClass* filter) {
     while (m_cur_message < m_num_messages) {
@@ -91,23 +141,52 @@ bool SchemaReader::get_next_message(std::string& message, FilterClass* filter) {
             auto pointer = m_pointers[m_global_id_to_local_id[column->get_id()]];
 
             if (type == "string") {
-                m_template[pointer]
-                        = std::get<std::string>(m_extracted_values.at(column->get_id()));
+                yyjson_mut_doc_ptr_set(
+                        m_doc,
+                        pointer.c_str(),
+                        yyjson_mut_str(
+                                m_doc,
+                                std::get<std::string>(m_extracted_values.at(column->get_id()))
+                                        .c_str()
+                        )
+                );
             } else if (type == "int") {
-                m_template[pointer] = std::get<int64_t>(m_extracted_values.at(column->get_id()));
+                yyjson_mut_doc_ptr_set(
+                        m_doc,
+                        pointer.c_str(),
+                        yyjson_mut_int(
+                                m_doc,
+                                std::get<int64_t>(m_extracted_values.at(column->get_id()))
+                        )
+                );
             } else if (type == "float") {
-                m_template[pointer] = std::get<double>(m_extracted_values.at(column->get_id()));
+                yyjson_mut_doc_ptr_set(
+                        m_doc,
+                        pointer.c_str(),
+                        yyjson_mut_real(
+                                m_doc,
+                                std::get<double>(m_extracted_values.at(column->get_id()))
+                        )
+                );
             } else if (type == "bool") {
-                m_template[pointer]
-                        = std::get<uint8_t>(m_extracted_values.at(column->get_id())) != 0;
+                yyjson_mut_doc_ptr_set(
+                        m_doc,
+                        pointer.c_str(),
+                        yyjson_mut_bool(
+                                m_doc,
+                                std::get<uint8_t>(m_extracted_values.at(column->get_id())) != 0
+                        )
+                );
             } else if (type == "array") {
-                m_template[pointer]
-                        = json::parse(std::get<std::string>(m_extracted_values.at(column->get_id()))
-                        );
+                std::string json_string
+                        = std::get<std::string>(m_extracted_values.at(column->get_id()));
+                yyjson_doc* doc = yyjson_read(json_string.c_str(), json_string.length(), 0);
+                yyjson_val* root = yyjson_doc_get_root(doc);
+                yyjson_mut_doc_ptr_set(m_doc, pointer.c_str(), yyjson_val_mut_copy(m_doc, root));
             }
         }
-
-        message = m_template.dump();
+        
+        message = yyjson_mut_write_opts(m_doc, 0, &PRIV_ALC, nullptr, nullptr);
 
         if (message.back() != '\n') {
             message += '\n';
@@ -141,7 +220,7 @@ void SchemaReader::generate_local_tree(int32_t global_id) {
     m_global_id_to_local_id[global_id] = local_id;
 }
 
-void SchemaReader::generate_json_template(json& object, int32_t id, std::string& json_pointer) {
+void SchemaReader::generate_json_template(int32_t id, std::string& json_pointer) {
     auto node = m_local_schema_tree->get_node(id);
     auto children_ids = node->get_children_ids();
 
@@ -150,63 +229,55 @@ void SchemaReader::generate_json_template(json& object, int32_t id, std::string&
         std::string const& key = child_node->get_key_name();
         switch (child_node->get_type()) {
             case NodeType::OBJECT: {
-                object[key] = json::object();
                 std::string json_pointer_string = get_json_pointer_string(key);
                 json_pointer += json_pointer_string + "/";
-                generate_json_template(object[key], child_id, json_pointer);
+                generate_json_template(child_id, json_pointer);
                 json_pointer.erase(json_pointer.length() - json_pointer_string.length() - 1);
                 break;
             }
             case NodeType::ARRAY: {
-                object[key] = json::array();
                 std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                m_pointers[child_id] = json_pointer + json_pointer_string;
                 break;
             }
             case NodeType::INTEGER: {
-                object[key] = 0;
                 std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                m_pointers[child_id] = json_pointer + json_pointer_string;
                 break;
             }
             case NodeType::FLOAT: {
-                object[key] = 1.0;
                 std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                m_pointers[child_id] = json_pointer + json_pointer_string;
                 break;
             }
             case NodeType::BOOLEAN: {
-                object[key] = false;
                 std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                m_pointers[child_id] = json_pointer + json_pointer_string;
                 break;
             }
             case NodeType::CLPSTRING: {
-                object[key] = "";
                 std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                m_pointers[child_id] = json_pointer + json_pointer_string;
                 break;
             }
             case NodeType::VARSTRING: {
-                object[key] = "";
                 std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                m_pointers[child_id] = json_pointer + json_pointer_string;
                 break;
             }
             case NodeType::DATESTRING: {
-                object[key] = "";
                 std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                m_pointers[child_id] = json_pointer + json_pointer_string;
                 break;
             }
             case NodeType::FLOATDATESTRING: {
-                object[key] = "";
                 std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                m_pointers[child_id] = json_pointer + json_pointer_string;
                 break;
             }
             case NodeType::NULLVALUE: {
-                object[key] = nullptr;
+                std::string json_pointer_string = json_pointer + get_json_pointer_string(key);
+                yyjson_mut_doc_ptr_set(m_doc, json_pointer_string.c_str(), yyjson_mut_null(m_doc));
                 break;
             }
         }

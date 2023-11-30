@@ -40,9 +40,10 @@ endif ()
 # Add Abseil
 set(ABSL_PROPAGATE_CXX_STD ON)
 add_subdirectory(submodules/abseil-cpp EXCLUDE_FROM_ALL)
-add_subdirectory(submodules/nlohmann_json EXCLUDE_FROM_ALL)
+add_subdirectory(submodules/yyjson EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/simdjson EXCLUDE_FROM_ALL)
 add_subdirectory(submodules/spdlog EXCLUDE_FROM_ALL)
+add_subdirectory(submodules/mimalloc EXCLUDE_FROM_ALL)
 
 add_subdirectory(src/clp_structured/search)
 
@@ -114,7 +115,7 @@ add_library(clp-s-archive
         submodules/date/include/date/date.h
 )
 
-target_link_libraries(clp-s-archive PUBLIC simdjson spdlog nlohmann_json ZStd::ZStd
+target_link_libraries(clp-s-archive PUBLIC simdjson spdlog yyjson ZStd::ZStd mimalloc
         Boost::serialization Boost::filesystem Boost::iostreams absl::flat_hash_map)
 
 add_executable(clp-s src/clp_structured/clp-s.cpp)

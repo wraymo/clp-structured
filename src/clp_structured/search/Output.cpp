@@ -8,14 +8,12 @@
 #include "clp_search/Grep.hpp"
 #include "EvaluateTimestampIndex.hpp"
 #include "FilterExpr.hpp"
-#include "nlohmann/json.hpp"
 #include "OrExpr.hpp"
 #include "SearchUtils.hpp"
 #include "src/clp_structured/FileWriter.hpp"
 #include "src/clp_structured/ReaderUtils.hpp"
 #include "src/clp_structured/Utils.hpp"
-
-using json = nlohmann::json;
+#include "yyjson.h"
 
 #define eval(op, a, b) (((op) == FilterOperation::EQ) ? ((a) == (b)) : ((a) != (b)))
 
@@ -587,12 +585,13 @@ namespace clp_structured { namespace search {
             std::string const& value,
             std::shared_ptr<Literal> const& operand
     ) const {
-        auto object = json::parse(value);
+        yyjson_doc* doc = yyjson_read(value.c_str(), value.length(), 0);
+        yyjson_val* object = yyjson_doc_get_root(doc);
         return evaluate_array_filter(object, op, unresolved_tokens, 0, operand, true);
     }
 
     bool Output::evaluate_array_filter(
-            json& object,
+            yyjson_val* object,
             FilterOperation op,
             DescriptorList const& unresolved_tokens,
             size_t cur_idx,
@@ -604,30 +603,21 @@ namespace clp_structured { namespace search {
             return false;
         }
 
-        for (auto i = object.begin(); i != object.end(); ++i) {
-            auto& value = i.value();
-            if (value.is_array()) {
-                match |= evaluate_array_filter(
-                        value,
-                        op,
-                        unresolved_tokens,
-                        cur_idx,
-                        operand,
-                        true
-                );
-            } else if (value.is_object()) {
-                if (false == array_or_object && cur_idx < unresolved_tokens.size()
-                    && i.key() == unresolved_tokens[cur_idx].get_token())
-                {
+        yyjson_val* value = nullptr;
+        if (array_or_object) {
+            for (yyjson_arr_iter iter = yyjson_arr_iter_with(object);
+                 (value = yyjson_arr_iter_next(&iter)) != nullptr;)
+            {
+                if (yyjson_is_arr(value)) {
                     match |= evaluate_array_filter(
                             value,
                             op,
                             unresolved_tokens,
-                            cur_idx + 1,
+                            cur_idx,
                             operand,
-                            false
+                            true
                     );
-                } else if (array_or_object) {
+                } else if (yyjson_is_obj(value)) {
                     match |= evaluate_array_filter(
                             value,
                             op,
@@ -636,34 +626,87 @@ namespace clp_structured { namespace search {
                             operand,
                             false
                     );
+                } else if (cur_idx == unresolved_tokens.size()) {
+                    std::string tmp_string;
+                    int64_t tmp_int;
+                    double tmp_float;
+                    bool tmp_bool;
+                    if (FilterOperation::EXISTS == op || FilterOperation::NEXISTS == op
+                        || (yyjson_is_int(value) && operand->as_int(tmp_int, op)
+                            && eval(op, yyjson_get_int(value), tmp_int))
+                        || (yyjson_is_real(value) && operand->as_float(tmp_float, op)
+                            && eval(op, yyjson_get_real(value), tmp_float))
+                        || (yyjson_is_bool(value) && operand->as_bool(tmp_bool, op)
+                            && eval(op, yyjson_get_bool(value), tmp_bool)))
+                    {
+                        match = true;
+                    } else if (yyjson_is_str(value) && (operand->as_var_string(tmp_string, op) || operand->as_clp_string(tmp_string, op)))
+                    {
+                        std::string s = yyjson_get_str(value);
+                        match = wildcard_match(s, tmp_string) ? op == FilterOperation::EQ
+                                                              : op == FilterOperation::NEQ;
+                    }
                 }
-            } else if (((array_or_object && cur_idx == unresolved_tokens.size())
-                        || (!array_or_object && cur_idx == unresolved_tokens.size() - 1
-                            && i.key() == unresolved_tokens[cur_idx].get_token())))
-            {
-                std::string tmp_string;
-                int64_t tmp_int;
-                double tmp_float;
-                bool tmp_bool;
-                if (FilterOperation::EXISTS == op || FilterOperation::NEXISTS == op
-                    || (value.is_number_integer() && operand->as_int(tmp_int, op)
-                        && eval(op, value.get<int64_t>(), tmp_int))
-                    || (value.is_number_float() && operand->as_float(tmp_float, op)
-                        && eval(op, value.get<double>(), tmp_float))
-                    || (value.is_boolean() && operand->as_bool(tmp_bool, op)
-                        && eval(op, value.get<bool>(), tmp_bool)))
-                {
-                    match = true;
-                } else if (value.is_string() && (operand->as_var_string(tmp_string, op) || operand->as_clp_string(tmp_string, op)))
-                {
-                    std::string s = value.get<std::string>();
-                    match = wildcard_match(s, tmp_string) ? op == FilterOperation::EQ
-                                                          : op == FilterOperation::NEQ;
+
+                if (match) {
+                    return true;
                 }
             }
+        } else {
+            yyjson_val* key = nullptr;
+            for (yyjson_obj_iter iter = yyjson_obj_iter_with(object);
+                 (key = yyjson_obj_iter_next(&iter)) != nullptr;)
+            {
+                value = yyjson_obj_iter_get_val(key);
+                if (yyjson_is_arr(value)) {
+                    match |= evaluate_array_filter(
+                            value,
+                            op,
+                            unresolved_tokens,
+                            cur_idx,
+                            operand,
+                            true
+                    );
+                } else if (yyjson_is_obj(value)) {
+                    if (cur_idx < unresolved_tokens.size()
+                        && yyjson_get_str(key) == unresolved_tokens[cur_idx].get_token())
+                    {
+                        match |= evaluate_array_filter(
+                                value,
+                                op,
+                                unresolved_tokens,
+                                cur_idx + 1,
+                                operand,
+                                false
+                        );
+                    }
+                } else if (cur_idx == unresolved_tokens.size() - 1
+                           && yyjson_get_str(key) == unresolved_tokens[cur_idx].get_token())
+                {
+                    std::string tmp_string;
+                    int64_t tmp_int;
+                    double tmp_float;
+                    bool tmp_bool;
+                    if (FilterOperation::EXISTS == op || FilterOperation::NEXISTS == op
+                        || (yyjson_is_int(value) && operand->as_int(tmp_int, op)
+                            && eval(op, yyjson_get_int(value), tmp_int))
+                        || (yyjson_is_real(value) && operand->as_float(tmp_float, op)
+                            && eval(op, yyjson_get_real(value), tmp_float))
+                        || (yyjson_is_bool(value) && operand->as_bool(tmp_bool, op)
+                            && eval(op, yyjson_get_bool(value), tmp_bool)))
+                    {
+                        match = true;
+                    } else if (yyjson_is_str(value) && (operand->as_var_string(tmp_string, op) || operand->as_clp_string(tmp_string, op)))
+                    {
+                        std::string s = yyjson_get_str(value);
+                        match = wildcard_match(s, tmp_string) ? op == FilterOperation::EQ
+                                                              : op == FilterOperation::NEQ;
+                    }
+                }
 
-            if (match) {
-                return true;
+                if (match) {
+                    return true;
+                }
             }
         }
 

@@ -246,7 +246,7 @@ namespace clp_structured { namespace search {
          * @return true if the expression evaluates to true, false otherwise
          */
         bool evaluate_array_filter(
-                json& object,
+                yyjson_val* object,
                 FilterOperation op,
                 DescriptorList const& unresolved_tokens,
                 size_t cur_idx,

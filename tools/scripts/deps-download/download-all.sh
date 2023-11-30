@@ -20,7 +20,7 @@ if [ -e "$project_root_dir/.git" ] ; then
 else
   python3 "${script_dir}/download-dep.py" "${script_dir}/abseil-cpp.json"
   python3 "${script_dir}/download-dep.py" "${script_dir}/date.json"
-  python3 "${script_dir}/download-dep.py" "${script_dir}/json.json"
+  python3 "${script_dir}/download-dep.py" "${script_dir}/yyjson.json"
   python3 "${script_dir}/download-dep.py" "${script_dir}/simdjson.json"
   python3 "${script_dir}/download-dep.py" "${script_dir}/spdlog.json"
 fi

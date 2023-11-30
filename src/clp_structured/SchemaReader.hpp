@@ -8,11 +8,9 @@
 
 #include "ColumnReader.hpp"
 #include "FileReader.hpp"
-#include "nlohmann/json.hpp"
 #include "SchemaTree.hpp"
+#include "yyjson.h"
 #include "ZstdDecompressor.hpp"
-
-using json = nlohmann::json;
 
 namespace clp_structured {
 class SchemaReader;
@@ -48,6 +46,7 @@ public:
             : m_num_messages(0),
               m_cur_message(0),
               m_global_schema_tree(std::move(schema_tree)),
+              m_doc(yyjson_mut_doc_new(nullptr)),
               m_schema_id(schema_id) {}
 
     // Destructor
@@ -115,7 +114,7 @@ private:
      * @param id
      * @param json_pointer
      */
-    void generate_json_template(json& object, int32_t id, std::string& json_pointer);
+    void generate_json_template(int32_t id, std::string& json_pointer);
 
     /**
      * Gets a json pointer string
@@ -138,8 +137,8 @@ private:
     std::shared_ptr<SchemaTree> m_local_schema_tree;
     std::unordered_map<int32_t, int32_t> m_global_id_to_local_id;
 
-    json m_template;
-    std::unordered_map<int32_t, json::json_pointer> m_pointers;
+    std::unordered_map<int32_t, std::string> m_pointers;
+    yyjson_mut_doc* m_doc;
 
     std::map<int32_t, std::variant<int64_t, double, std::string, uint8_t>> m_extracted_values;
 };
