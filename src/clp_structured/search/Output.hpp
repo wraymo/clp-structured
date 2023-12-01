@@ -17,6 +17,7 @@
 #include "submodules/simdjson/include/simdjson.h"
 
 using namespace simdjson;
+using nlohmann::json;
 using namespace clp_structured::search::clp_search;
 
 namespace clp_structured { namespace search {
@@ -90,8 +91,11 @@ namespace clp_structured { namespace search {
          * @param schema_id
          * @param columns
          */
-        void init(SchemaReader* reader, int32_t schema_id, std::vector<BaseColumnReader*>& columns)
-                override;
+        void init(
+                SchemaReader* reader,
+                int32_t schema_id,
+                std::unordered_map<int32_t, BaseColumnReader*>& columns
+        ) override;
 
         /**
          * Evaluates an expression

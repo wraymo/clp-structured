@@ -130,38 +130,41 @@ namespace clp_structured { namespace search {
         }
     }
 
-    void
-    Output::init(SchemaReader* reader, int32_t schema_id, std::vector<BaseColumnReader*>& columns) {
+    void Output::init(
+            SchemaReader* reader,
+            int32_t schema_id,
+            std::unordered_map<int32_t, BaseColumnReader*>& columns
+    ) {
         m_reader = reader;
         m_schema = schema_id;
 
         m_searched_columns.clear();
         m_other_columns.clear();
 
-        for (auto* column : columns) {
-            ClpStringColumnReader* clp_reader = dynamic_cast<ClpStringColumnReader*>(column);
+        for (auto& column : columns) {
+            ClpStringColumnReader* clp_reader = dynamic_cast<ClpStringColumnReader*>(column.second);
             VariableStringColumnReader* var_reader
-                    = dynamic_cast<VariableStringColumnReader*>(column);
-            if (m_match.schema_searches_against_column(schema_id, column->get_id())) {
+                    = dynamic_cast<VariableStringColumnReader*>(column.second);
+            if (m_match.schema_searches_against_column(schema_id, column.first)) {
                 if (clp_reader != nullptr && clp_reader->get_type() == "string") {
-                    m_clp_string_readers[column->get_id()] = clp_reader;
-                    m_other_columns.push_back(column);
+                    m_clp_string_readers[column.first] = clp_reader;
+                    m_other_columns.push_back(column.second);
                 } else if (var_reader != nullptr && var_reader->get_type() == "string") {
-                    m_var_string_readers[column->get_id()] = var_reader;
-                    m_other_columns.push_back(column);
-                } else if (auto date_column_reader = dynamic_cast<DateStringColumnReader*>(column))
+                    m_var_string_readers[column.first] = var_reader;
+                    m_other_columns.push_back(column.second);
+                } else if (auto date_column_reader = dynamic_cast<DateStringColumnReader*>(column.second))
                 {
-                    m_datestring_readers[column->get_id()] = date_column_reader;
-                    m_other_columns.push_back(column);
-                } else if (auto float_date_column_reader = dynamic_cast<FloatDateStringColumnReader*>(column))
+                    m_datestring_readers[column.first] = date_column_reader;
+                    m_other_columns.push_back(column.second);
+                } else if (auto float_date_column_reader = dynamic_cast<FloatDateStringColumnReader*>(column.second))
                 {
-                    m_floatdatestring_readers[column->get_id()] = float_date_column_reader;
-                    m_other_columns.push_back(column);
+                    m_floatdatestring_readers[column.first] = float_date_column_reader;
+                    m_other_columns.push_back(column.second);
                 } else {
-                    m_searched_columns.push_back(column);
+                    m_searched_columns.push_back(column.second);
                 }
             } else {
-                m_other_columns.push_back(column);
+                m_other_columns.push_back(column.second);
             }
         }
     }
