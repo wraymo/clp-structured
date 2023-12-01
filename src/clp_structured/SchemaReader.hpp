@@ -8,11 +8,10 @@
 
 #include "ColumnReader.hpp"
 #include "FileReader.hpp"
+#include "JsonSerializer.hpp"
 #include "nlohmann/json.hpp"
 #include "SchemaTree.hpp"
 #include "ZstdDecompressor.hpp"
-
-using json = nlohmann::json;
 
 namespace clp_structured {
 class SchemaReader;
@@ -25,9 +24,11 @@ public:
      * @param schema_id
      * @param columns
      */
-    virtual void
-    init(SchemaReader* reader, int32_t schema_id, std::vector<BaseColumnReader*>& columns)
-            = 0;
+    virtual void init(
+            SchemaReader* reader,
+            int32_t schema_id,
+            std::unordered_map<int32_t, BaseColumnReader*>& columns
+    ) = 0;
 
     /**
      * Filters the message
@@ -48,7 +49,8 @@ public:
             : m_num_messages(0),
               m_cur_message(0),
               m_global_schema_tree(std::move(schema_tree)),
-              m_schema_id(schema_id) {}
+              m_schema_id(schema_id),
+              m_json_serializer(std::make_shared<JsonSerializer>()) {}
 
     // Destructor
     ~SchemaReader() = default;
@@ -115,7 +117,7 @@ private:
      * @param id
      * @param json_pointer
      */
-    void generate_json_template(json& object, int32_t id, std::string& json_pointer);
+    void generate_json_template(int32_t id);
 
     /**
      * Gets a json pointer string
@@ -132,14 +134,15 @@ private:
     FileReader m_file_reader;
     ZstdDecompressor m_decompressor;
 
+    std::unordered_map<int32_t, BaseColumnReader*> m_column_map;
     std::vector<BaseColumnReader*> m_columns;
 
     std::shared_ptr<SchemaTree> m_global_schema_tree;
     std::shared_ptr<SchemaTree> m_local_schema_tree;
     std::unordered_map<int32_t, int32_t> m_global_id_to_local_id;
+    std::unordered_map<int32_t, int32_t> m_local_id_to_global_id;
 
-    json m_template;
-    std::unordered_map<int32_t, json::json_pointer> m_pointers;
+    std::shared_ptr<JsonSerializer> m_json_serializer;
 
     std::map<int32_t, std::variant<int64_t, double, std::string, uint8_t>> m_extracted_values;
 };

@@ -79,6 +79,8 @@ add_library(clp-s-archive
         src/clp_structured/JsonFileIterator.hpp
         src/clp_structured/JsonParser.cpp
         src/clp_structured/JsonParser.hpp
+        src/clp_structured/JsonSerializer.cpp
+        src/clp_structured/JsonSerializer.hpp
         src/clp_structured/ParsedMessage.cpp
         src/clp_structured/ParsedMessage.hpp
         src/clp_structured/ReaderUtils.cpp
@@ -112,6 +114,7 @@ add_library(clp-s-archive
         src/clp_structured/ZstdDecompressor.cpp
         src/clp_structured/ZstdDecompressor.hpp
         submodules/date/include/date/date.h
+
 )
 
 target_link_libraries(clp-s-archive PUBLIC simdjson spdlog nlohmann_json ZStd::ZStd

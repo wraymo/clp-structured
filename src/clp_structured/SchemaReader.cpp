@@ -11,11 +11,12 @@ void SchemaReader::close() {
         delete i;
     }
 
-    m_columns.clear();
+    m_column_map.clear();
     m_global_id_to_local_id.clear();
 }
 
 void SchemaReader::append_column(BaseColumnReader* column_reader) {
+    m_column_map[column_reader->get_id()] = column_reader;
     m_columns.push_back(column_reader);
     generate_local_tree(column_reader->get_id());
 }
@@ -40,8 +41,7 @@ void SchemaReader::load() {
     m_decompressor.close();
     m_file_reader.close();
 
-    std::string root_string = "/";
-    generate_json_template(m_template, 0, root_string);
+    generate_json_template(0);
 }
 
 bool SchemaReader::get_next_message(std::string& message) {
@@ -49,27 +49,75 @@ bool SchemaReader::get_next_message(std::string& message) {
         return false;
     }
 
-    message.clear();
-
-    for (auto& column : m_columns) {
-        std::string type = column->get_type();
-        auto pointer = m_pointers[m_global_id_to_local_id[column->get_id()]];
-
-        if (type == "string") {
-            m_template[pointer] = std::get<std::string>(column->extract_value(m_cur_message));
-        } else if (type == "int") {
-            m_template[pointer] = std::get<int64_t>(column->extract_value(m_cur_message));
-        } else if (type == "float") {
-            m_template[pointer] = std::get<double>(column->extract_value(m_cur_message));
-        } else if (type == "bool") {
-            m_template[pointer] = std::get<uint8_t>(column->extract_value(m_cur_message)) != 0;
-        } else if (type == "array") {
-            m_template[pointer]
-                    = json::parse(std::get<std::string>(column->extract_value(m_cur_message)));
+    m_json_serializer->reset();
+    m_json_serializer->begin_document();
+    auto& op_list = m_json_serializer->get_op_list();
+    auto& column_id_list = m_json_serializer->get_column_id_list();
+    size_t column_id_index = 0;
+    BaseColumnReader* column = nullptr;
+    for (size_t i = 0; i < op_list.size(); i++) {
+        auto op = op_list[i];
+        switch (op) {
+            case JsonSerializer::Op::BeginObject: {
+                m_json_serializer->begin_object();
+                break;
+            }
+            case JsonSerializer::Op::EndObject: {
+                m_json_serializer->end_object();
+                break;
+            }
+            case JsonSerializer::Op::AddIntField: {
+                column = m_column_map[column_id_list[column_id_index++]];
+                m_json_serializer->append_key(column->get_name());
+                m_json_serializer->append_value(
+                        std::to_string(std::get<int64_t>(column->extract_value(m_cur_message)))
+                );
+                break;
+            }
+            case JsonSerializer::Op::AddFloatField: {
+                column = m_column_map[column_id_list[column_id_index++]];
+                m_json_serializer->append_key(column->get_name());
+                m_json_serializer->append_value(
+                        std::to_string(std::get<double>(column->extract_value(m_cur_message)))
+                );
+                break;
+            }
+            case JsonSerializer::Op::AddBoolField: {
+                column = m_column_map[column_id_list[column_id_index++]];
+                m_json_serializer->append_key(column->get_name());
+                m_json_serializer->append_value(
+                        std::get<uint8_t>(column->extract_value(m_cur_message)) != 0 ? "true"
+                                                                                     : "false"
+                );
+                break;
+            }
+            case JsonSerializer::Op::AddStringField: {
+                column = m_column_map[column_id_list[column_id_index++]];
+                m_json_serializer->append_key(column->get_name());
+                m_json_serializer->append_value_with_quotes(
+                        std::get<std::string>(column->extract_value(m_cur_message))
+                );
+                break;
+            }
+            case JsonSerializer::Op::AddArrayField: {
+                column = m_column_map[column_id_list[column_id_index++]];
+                m_json_serializer->append_key(column->get_name());
+                m_json_serializer->append_value(
+                        std::get<std::string>(column->extract_value(m_cur_message))
+                );
+                break;
+            }
+            case JsonSerializer::Op::AddNullField: {
+                m_json_serializer->append_key();
+                m_json_serializer->append_value("null");
+                break;
+            }
         }
     }
 
-    message = m_template.dump();
+    m_json_serializer->end_document();
+
+    message = m_json_serializer->get_serialized_string();
 
     if (message.back() != '\n') {
         message += '\n';
@@ -86,28 +134,74 @@ bool SchemaReader::get_next_message(std::string& message, FilterClass* filter) {
             continue;
         }
 
-        for (auto& column : m_columns) {
-            std::string type = column->get_type();
-            auto pointer = m_pointers[m_global_id_to_local_id[column->get_id()]];
-
-            if (type == "string") {
-                m_template[pointer]
-                        = std::get<std::string>(m_extracted_values.at(column->get_id()));
-            } else if (type == "int") {
-                m_template[pointer] = std::get<int64_t>(m_extracted_values.at(column->get_id()));
-            } else if (type == "float") {
-                m_template[pointer] = std::get<double>(m_extracted_values.at(column->get_id()));
-            } else if (type == "bool") {
-                m_template[pointer]
-                        = std::get<uint8_t>(m_extracted_values.at(column->get_id())) != 0;
-            } else if (type == "array") {
-                m_template[pointer]
-                        = json::parse(std::get<std::string>(m_extracted_values.at(column->get_id()))
-                        );
+        m_json_serializer->reset();
+        m_json_serializer->begin_document();
+        auto& op_list = m_json_serializer->get_op_list();
+        auto& column_id_list = m_json_serializer->get_column_id_list();
+        size_t column_id_index = 0;
+        BaseColumnReader* column = nullptr;
+        for (auto op : op_list) {
+            switch (op) {
+                case JsonSerializer::Op::BeginObject: {
+                    m_json_serializer->begin_object();
+                    break;
+                }
+                case JsonSerializer::Op::EndObject: {
+                    m_json_serializer->end_object();
+                    break;
+                }
+                case JsonSerializer::Op::AddIntField: {
+                    column = m_column_map[column_id_list[column_id_index++]];
+                    m_json_serializer->append_key(column->get_name());
+                    m_json_serializer->append_value(
+                            std::to_string(std::get<int64_t>(m_extracted_values[column->get_id()]))
+                    );
+                    break;
+                }
+                case JsonSerializer::Op::AddFloatField: {
+                    column = m_column_map[column_id_list[column_id_index++]];
+                    m_json_serializer->append_key(column->get_name());
+                    m_json_serializer->append_value(
+                            std::to_string(std::get<double>(m_extracted_values[column->get_id()]))
+                    );
+                    break;
+                }
+                case JsonSerializer::Op::AddBoolField: {
+                    column = m_column_map[column_id_list[column_id_index++]];
+                    m_json_serializer->append_key(column->get_name());
+                    m_json_serializer->append_value(
+                            std::get<uint8_t>(m_extracted_values[column->get_id()]) != 0 ? "true"
+                                                                                         : "false"
+                    );
+                    break;
+                }
+                case JsonSerializer::Op::AddStringField: {
+                    column = m_column_map[column_id_list[column_id_index++]];
+                    m_json_serializer->append_key(column->get_name());
+                    m_json_serializer->append_value_with_quotes(
+                            std::get<std::string>(m_extracted_values[column->get_id()])
+                    );
+                    break;
+                }
+                case JsonSerializer::Op::AddArrayField: {
+                    column = m_column_map[column_id_list[column_id_index++]];
+                    m_json_serializer->append_key(column->get_name());
+                    m_json_serializer->append_value(
+                            std::get<std::string>(m_extracted_values[column->get_id()])
+                    );
+                    break;
+                }
+                case JsonSerializer::Op::AddNullField: {
+                    m_json_serializer->append_key();
+                    m_json_serializer->append_value("null");
+                    break;
+                }
             }
         }
 
-        message = m_template.dump();
+        m_json_serializer->end_document();
+
+        message = m_json_serializer->get_serialized_string();
 
         if (message.back() != '\n') {
             message += '\n';
@@ -121,7 +215,7 @@ bool SchemaReader::get_next_message(std::string& message, FilterClass* filter) {
 }
 
 void SchemaReader::initialize_filter(FilterClass* filter) {
-    filter->init(this, m_schema_id, m_columns);
+    filter->init(this, m_schema_id, m_column_map);
 }
 
 void SchemaReader::generate_local_tree(int32_t global_id) {
@@ -139,94 +233,54 @@ void SchemaReader::generate_local_tree(int32_t global_id) {
             node->get_key_name()
     );
     m_global_id_to_local_id[global_id] = local_id;
+    m_local_id_to_global_id[local_id] = global_id;
 }
 
-void SchemaReader::generate_json_template(json& object, int32_t id, std::string& json_pointer) {
+void SchemaReader::generate_json_template(int32_t id) {
     auto node = m_local_schema_tree->get_node(id);
     auto children_ids = node->get_children_ids();
 
     for (int32_t child_id : children_ids) {
+        int32_t child_global_id = m_local_id_to_global_id[child_id];
         auto child_node = m_local_schema_tree->get_node(child_id);
         std::string const& key = child_node->get_key_name();
         switch (child_node->get_type()) {
             case NodeType::OBJECT: {
-                object[key] = json::object();
-                std::string json_pointer_string = get_json_pointer_string(key);
-                json_pointer += json_pointer_string + "/";
-                generate_json_template(object[key], child_id, json_pointer);
-                json_pointer.erase(json_pointer.length() - json_pointer_string.length() - 1);
+                m_json_serializer->add_op(JsonSerializer::Op::BeginObject);
+                m_json_serializer->add_special_key(key);
+                generate_json_template(child_id);
+                m_json_serializer->add_op(JsonSerializer::Op::EndObject);
                 break;
             }
             case NodeType::ARRAY: {
-                object[key] = json::array();
-                std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                m_json_serializer->add_op(JsonSerializer::Op::AddArrayField, child_global_id);
                 break;
             }
             case NodeType::INTEGER: {
-                object[key] = 0;
-                std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                m_json_serializer->add_op(JsonSerializer::Op::AddIntField, child_global_id);
                 break;
             }
             case NodeType::FLOAT: {
-                object[key] = 1.0;
-                std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                m_json_serializer->add_op(JsonSerializer::Op::AddFloatField, child_global_id);
                 break;
             }
             case NodeType::BOOLEAN: {
-                object[key] = false;
-                std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                m_json_serializer->add_op(JsonSerializer::Op::AddBoolField, child_global_id);
                 break;
             }
-            case NodeType::CLPSTRING: {
-                object[key] = "";
-                std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
-                break;
-            }
-            case NodeType::VARSTRING: {
-                object[key] = "";
-                std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
-                break;
-            }
-            case NodeType::DATESTRING: {
-                object[key] = "";
-                std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
-                break;
-            }
+            case NodeType::CLPSTRING:
+            case NodeType::VARSTRING:
+            case NodeType::DATESTRING:
             case NodeType::FLOATDATESTRING: {
-                object[key] = "";
-                std::string json_pointer_string = get_json_pointer_string(key);
-                m_pointers[child_id] = json::json_pointer(json_pointer + json_pointer_string);
+                m_json_serializer->add_op(JsonSerializer::Op::AddStringField, child_global_id);
                 break;
             }
             case NodeType::NULLVALUE: {
-                object[key] = nullptr;
+                m_json_serializer->add_op(JsonSerializer::Op::AddNullField);
+                m_json_serializer->add_special_key(key);
                 break;
             }
         }
     }
-}
-
-std::string SchemaReader::get_json_pointer_string(std::string const& s) {
-    std::string res = s;
-    size_t start_pos = 0;
-    while ((start_pos = res.find('~', start_pos)) != std::string::npos) {
-        res.replace(start_pos, 1, "~0");
-        start_pos += 2;
-    }
-
-    start_pos = 0;
-    while ((start_pos = res.find('/', start_pos)) != std::string::npos) {
-        res.replace(start_pos, 1, "~1");
-        start_pos += 2;
-    }
-
-    return res;
 }
 }  // namespace clp_structured

@@ -42,7 +42,7 @@ public:
 
     int32_t get_parent_id() const { return m_parent_id; }
 
-    std::vector<int32_t> get_children_ids() const { return m_children_ids; }
+    std::vector<int32_t> &get_children_ids() { return m_children_ids; }
 
     NodeType get_type() const { return m_type; }
 
