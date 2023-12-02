@@ -62,30 +62,7 @@ public:
     void append_value(std::string const& value) { m_json_string += value + ","; }
 
     void append_value_with_quotes(std::string const& value) {
-        m_json_string += "\"";
-
-        for (char c : value) {
-            switch (c) {
-                case '\n':
-                    //                    m_json_string.append("\\n");
-                    m_json_string += "\\n";
-                    break;
-                case '\t':
-                    //                    m_json_string.append("\\t");
-                    m_json_string += "\\t";
-                    break;
-                case '\r':
-                    //                    m_json_string.append("\\r");
-                    m_json_string += "\\r";
-                    break;
-                default:
-                    //                    m_json_string.push_back(i);
-                    m_json_string += c;
-                    break;
-            }
-        }
-
-        m_json_string += "\",";
+        m_json_string += "\"" + value + "\"";
     }
 
     std::vector<int32_t>& get_column_id_list() { return m_column_id_list; }

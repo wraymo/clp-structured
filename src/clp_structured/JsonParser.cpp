@@ -141,8 +141,10 @@ void JsonParser::parse_line(ondemand::value line, int32_t parent_node_id, std::s
                 break;
             }
             case ondemand::json_type::string: {
-                std::string value = std::string(std::string_view(line.get_string()));
-
+                // TODO (Rui): Take a look
+                std::string value = std::string(
+                        line.raw_json_token().substr(1, line.raw_json_token().size() - 2)
+                );
                 if (matches_timestamp) {
                     double ret_double;
                     if (StringUtils::convert_string_to_double(value, ret_double)) {
@@ -210,7 +212,9 @@ void JsonParser::parse_line(ondemand::value line, int32_t parent_node_id, std::s
                 may_match_timestamp = true;
             }
         } while (!object_it_stack.empty() && hit_end);
-    } while (!object_stack.empty());
+    }
+
+    while (!object_stack.empty());
 }
 
 void JsonParser::parse() {
