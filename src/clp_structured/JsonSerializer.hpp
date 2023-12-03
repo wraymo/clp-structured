@@ -27,12 +27,21 @@ public:
 
     void reset() {
         m_json_string.clear();
+        m_op_list_index = 0;
         m_special_keys_index = 0;
     }
 
     void add_op(Op op) { m_op_list.push_back(op); }
 
     std::vector<Op>& get_op_list() { return m_op_list; }
+
+    bool get_next_op(Op& op) {
+        if (m_op_list_index < m_op_list.size()) {
+            op = m_op_list[m_op_list_index++];
+            return true;
+        }
+        return false;
+    }
 
     void add_special_key(std::string const& key) { m_special_keys.push_back(key); }
 
@@ -46,7 +55,9 @@ public:
     void end_document() { m_json_string[m_json_string.size() - 1] = '}'; }
 
     void end_object() {
-        m_json_string.pop_back();
+        if (m_op_list[m_op_list_index - 2] != BeginObject) {
+            m_json_string.pop_back();
+        }
         m_json_string += "},";
     }
 
@@ -57,7 +68,7 @@ public:
     void append_value(std::string const& value) { m_json_string += value + ","; }
 
     void append_value_with_quotes(std::string const& value) {
-        m_json_string += "\"" + value + "\"";
+        m_json_string += "\"" + value + "\",";
     }
 
 private:
@@ -65,6 +76,7 @@ private:
     std::vector<Op> m_op_list;
     std::vector<std::string> m_special_keys;
 
+    size_t m_op_list_index;
     size_t m_special_keys_index;
 };
 
