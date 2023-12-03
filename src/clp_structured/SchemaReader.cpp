@@ -51,11 +51,10 @@ bool SchemaReader::get_next_message(std::string& message) {
 
     m_json_serializer->reset();
     m_json_serializer->begin_document();
-    auto& op_list = m_json_serializer->get_op_list();
     size_t column_id_index = 0;
-    BaseColumnReader* column = nullptr;
-    for (size_t i = 0; i < op_list.size(); i++) {
-        auto op = op_list[i];
+    BaseColumnReader* column;
+    JsonSerializer::Op op;
+    while (m_json_serializer->get_next_op(op)) {
         switch (op) {
             case JsonSerializer::Op::BeginObject: {
                 m_json_serializer->begin_object();
@@ -135,10 +134,10 @@ bool SchemaReader::get_next_message(std::string& message, FilterClass* filter) {
 
         m_json_serializer->reset();
         m_json_serializer->begin_document();
-        auto& op_list = m_json_serializer->get_op_list();
         size_t column_id_index = 0;
-        BaseColumnReader* column = nullptr;
-        for (auto op : op_list) {
+        BaseColumnReader* column;
+        JsonSerializer::Op op;
+        while (m_json_serializer->get_next_op(op)) {
             switch (op) {
                 case JsonSerializer::Op::BeginObject: {
                     m_json_serializer->begin_object();
