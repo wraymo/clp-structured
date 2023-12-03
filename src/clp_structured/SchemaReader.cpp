@@ -52,7 +52,6 @@ bool SchemaReader::get_next_message(std::string& message) {
     m_json_serializer->reset();
     m_json_serializer->begin_document();
     auto& op_list = m_json_serializer->get_op_list();
-    auto& column_id_list = m_json_serializer->get_column_id_list();
     size_t column_id_index = 0;
     BaseColumnReader* column = nullptr;
     for (size_t i = 0; i < op_list.size(); i++) {
@@ -67,7 +66,7 @@ bool SchemaReader::get_next_message(std::string& message) {
                 break;
             }
             case JsonSerializer::Op::AddIntField: {
-                column = m_column_map[column_id_list[column_id_index++]];
+                column = m_reordered_columns[column_id_index++];
                 m_json_serializer->append_key(column->get_name());
                 m_json_serializer->append_value(
                         std::to_string(std::get<int64_t>(column->extract_value(m_cur_message)))
@@ -75,7 +74,7 @@ bool SchemaReader::get_next_message(std::string& message) {
                 break;
             }
             case JsonSerializer::Op::AddFloatField: {
-                column = m_column_map[column_id_list[column_id_index++]];
+                column = m_reordered_columns[column_id_index++];
                 m_json_serializer->append_key(column->get_name());
                 m_json_serializer->append_value(
                         std::to_string(std::get<double>(column->extract_value(m_cur_message)))
@@ -83,7 +82,7 @@ bool SchemaReader::get_next_message(std::string& message) {
                 break;
             }
             case JsonSerializer::Op::AddBoolField: {
-                column = m_column_map[column_id_list[column_id_index++]];
+                column = m_reordered_columns[column_id_index++];
                 m_json_serializer->append_key(column->get_name());
                 m_json_serializer->append_value(
                         std::get<uint8_t>(column->extract_value(m_cur_message)) != 0 ? "true"
@@ -92,7 +91,7 @@ bool SchemaReader::get_next_message(std::string& message) {
                 break;
             }
             case JsonSerializer::Op::AddStringField: {
-                column = m_column_map[column_id_list[column_id_index++]];
+                column = m_reordered_columns[column_id_index++];
                 m_json_serializer->append_key(column->get_name());
                 m_json_serializer->append_value_with_quotes(
                         std::get<std::string>(column->extract_value(m_cur_message))
@@ -100,7 +99,7 @@ bool SchemaReader::get_next_message(std::string& message) {
                 break;
             }
             case JsonSerializer::Op::AddArrayField: {
-                column = m_column_map[column_id_list[column_id_index++]];
+                column = m_reordered_columns[column_id_index++];
                 m_json_serializer->append_key(column->get_name());
                 m_json_serializer->append_value(
                         std::get<std::string>(column->extract_value(m_cur_message))
@@ -137,7 +136,6 @@ bool SchemaReader::get_next_message(std::string& message, FilterClass* filter) {
         m_json_serializer->reset();
         m_json_serializer->begin_document();
         auto& op_list = m_json_serializer->get_op_list();
-        auto& column_id_list = m_json_serializer->get_column_id_list();
         size_t column_id_index = 0;
         BaseColumnReader* column = nullptr;
         for (auto op : op_list) {
@@ -151,7 +149,7 @@ bool SchemaReader::get_next_message(std::string& message, FilterClass* filter) {
                     break;
                 }
                 case JsonSerializer::Op::AddIntField: {
-                    column = m_column_map[column_id_list[column_id_index++]];
+                    column = m_reordered_columns[column_id_index++];
                     m_json_serializer->append_key(column->get_name());
                     m_json_serializer->append_value(
                             std::to_string(std::get<int64_t>(m_extracted_values[column->get_id()]))
@@ -159,7 +157,7 @@ bool SchemaReader::get_next_message(std::string& message, FilterClass* filter) {
                     break;
                 }
                 case JsonSerializer::Op::AddFloatField: {
-                    column = m_column_map[column_id_list[column_id_index++]];
+                    column = m_reordered_columns[column_id_index++];
                     m_json_serializer->append_key(column->get_name());
                     m_json_serializer->append_value(
                             std::to_string(std::get<double>(m_extracted_values[column->get_id()]))
@@ -167,7 +165,7 @@ bool SchemaReader::get_next_message(std::string& message, FilterClass* filter) {
                     break;
                 }
                 case JsonSerializer::Op::AddBoolField: {
-                    column = m_column_map[column_id_list[column_id_index++]];
+                    column = m_reordered_columns[column_id_index++];
                     m_json_serializer->append_key(column->get_name());
                     m_json_serializer->append_value(
                             std::get<uint8_t>(m_extracted_values[column->get_id()]) != 0 ? "true"
@@ -176,7 +174,7 @@ bool SchemaReader::get_next_message(std::string& message, FilterClass* filter) {
                     break;
                 }
                 case JsonSerializer::Op::AddStringField: {
-                    column = m_column_map[column_id_list[column_id_index++]];
+                    column = m_reordered_columns[column_id_index++];
                     m_json_serializer->append_key(column->get_name());
                     m_json_serializer->append_value_with_quotes(
                             std::get<std::string>(m_extracted_values[column->get_id()])
@@ -184,7 +182,7 @@ bool SchemaReader::get_next_message(std::string& message, FilterClass* filter) {
                     break;
                 }
                 case JsonSerializer::Op::AddArrayField: {
-                    column = m_column_map[column_id_list[column_id_index++]];
+                    column = m_reordered_columns[column_id_index++];
                     m_json_serializer->append_key(column->get_name());
                     m_json_serializer->append_value(
                             std::get<std::string>(m_extracted_values[column->get_id()])
@@ -253,26 +251,31 @@ void SchemaReader::generate_json_template(int32_t id) {
                 break;
             }
             case NodeType::ARRAY: {
-                m_json_serializer->add_op(JsonSerializer::Op::AddArrayField, child_global_id);
+                m_json_serializer->add_op(JsonSerializer::Op::AddArrayField);
+                m_reordered_columns.push_back(m_column_map[child_global_id]);
                 break;
             }
             case NodeType::INTEGER: {
-                m_json_serializer->add_op(JsonSerializer::Op::AddIntField, child_global_id);
+                m_json_serializer->add_op(JsonSerializer::Op::AddIntField);
+                m_reordered_columns.push_back(m_column_map[child_global_id]);
                 break;
             }
             case NodeType::FLOAT: {
-                m_json_serializer->add_op(JsonSerializer::Op::AddFloatField, child_global_id);
+                m_json_serializer->add_op(JsonSerializer::Op::AddFloatField);
+                m_reordered_columns.push_back(m_column_map[child_global_id]);
                 break;
             }
             case NodeType::BOOLEAN: {
-                m_json_serializer->add_op(JsonSerializer::Op::AddBoolField, child_global_id);
+                m_json_serializer->add_op(JsonSerializer::Op::AddBoolField);
+                m_reordered_columns.push_back(m_column_map[child_global_id]);
                 break;
             }
             case NodeType::CLPSTRING:
             case NodeType::VARSTRING:
             case NodeType::DATESTRING:
             case NodeType::FLOATDATESTRING: {
-                m_json_serializer->add_op(JsonSerializer::Op::AddStringField, child_global_id);
+                m_json_serializer->add_op(JsonSerializer::Op::AddStringField);
+                m_reordered_columns.push_back(m_column_map[child_global_id]);
                 break;
             }
             case NodeType::NULLVALUE: {

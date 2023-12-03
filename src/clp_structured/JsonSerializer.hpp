@@ -32,11 +32,6 @@ public:
 
     void add_op(Op op) { m_op_list.push_back(op); }
 
-    void add_op(Op op, int32_t id) {
-        m_op_list.push_back(op);
-        m_column_id_list.push_back(id);
-    }
-
     std::vector<Op>& get_op_list() { return m_op_list; }
 
     void add_special_key(std::string const& key) { m_special_keys.push_back(key); }
@@ -65,13 +60,10 @@ public:
         m_json_string += "\"" + value + "\"";
     }
 
-    std::vector<int32_t>& get_column_id_list() { return m_column_id_list; }
-
 private:
     std::string m_json_string;
     std::vector<Op> m_op_list;
     std::vector<std::string> m_special_keys;
-    std::vector<int32_t> m_column_id_list;
 
     size_t m_special_keys_index;
 };

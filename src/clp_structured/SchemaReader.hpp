@@ -136,6 +136,7 @@ private:
 
     std::unordered_map<int32_t, BaseColumnReader*> m_column_map;
     std::vector<BaseColumnReader*> m_columns;
+    std::vector<BaseColumnReader*> m_reordered_columns;
 
     std::shared_ptr<SchemaTree> m_global_schema_tree;
     std::shared_ptr<SchemaTree> m_local_schema_tree;
