@@ -1,12 +1,44 @@
 #include "ColumnWriter.hpp"
 
 namespace clp_structured {
+template <typename T>
+static void write_numeric_value(std::vector<uint8_t>& target, T value, bool reserve = true) {
+    if (reserve) {
+        target.reserve(target.size() + sizeof(T));
+    }
+    memcpy(&target.back(), &value, sizeof(T));
+}
+
+template <typename T>
+static void write_numeric_values(std::vector<uint8_t>& target, T* value, size_t size) {
+    target.reserve(target.size() + sizeof(T) * size);
+    memcpy(&target.back(), &value, sizeof(T) * size);
+}
+
+static void write_string(std::vector<uint8_t>& target, std::string const& value) {
+    target.reserve(target.size() + value.size() + sizeof(uint16_t));
+    uint16_t size = value.size();
+    write_numeric_value(target, size, false);
+
+    memcpy(&target.back(), value.data(), size);
+}
+
 void Int64ColumnWriter::add_value(
         std::variant<int64_t, double, std::string, bool>& value,
         size_t& size
 ) {
     size = sizeof(int64_t);
     m_values.push_back(std::get<int64_t>(value));
+}
+
+void Int64ColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
+    write_numeric_value(dest, m_values[index]);
+}
+
+void Int64ColumnWriter::combine(BaseColumnWriter* writer_base) {
+    Int64ColumnWriter* writer = (Int64ColumnWriter*)writer_base;
+    m_values.insert(m_values.end(), writer->m_values.begin(), writer->m_values.end());
+    delete writer_base;
 }
 
 void Int64ColumnWriter::store(ZstdCompressor& compressor) {
@@ -24,6 +56,16 @@ void FloatColumnWriter::add_value(
     m_values.push_back(std::get<double>(value));
 }
 
+void FloatColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
+    write_numeric_value(dest, m_values[index]);
+}
+
+void FloatColumnWriter::combine(BaseColumnWriter* writer_base) {
+    FloatColumnWriter* writer = (FloatColumnWriter*)writer_base;
+    m_values.insert(m_values.end(), writer->m_values.begin(), writer->m_values.end());
+    delete writer_base;
+}
+
 void FloatColumnWriter::store(ZstdCompressor& compressor) {
     compressor.write(
             reinterpret_cast<char const*>(m_values.data()),
@@ -37,6 +79,16 @@ void BooleanColumnWriter::add_value(
 ) {
     size = sizeof(uint8_t);
     m_values.push_back(std::get<bool>(value) ? 1 : 0);
+}
+
+void BooleanColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
+    write_numeric_value(dest, m_values[index]);
+}
+
+void BooleanColumnWriter::combine(BaseColumnWriter* writer_base) {
+    BooleanColumnWriter* writer = (BooleanColumnWriter*)writer_base;
+    m_values.insert(m_values.end(), writer->m_values.begin(), writer->m_values.end());
+    delete writer_base;
 }
 
 void BooleanColumnWriter::store(ZstdCompressor& compressor) {
@@ -66,6 +118,42 @@ void ClpStringColumnWriter::add_value(
     size += sizeof(int64_t) * (m_encoded_vars.size() - offset);
 }
 
+void ClpStringColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
+    uint64_t encoded_id = m_logtypes[index];
+    int32_t encoded_log_type = get_encoded_log_dict_id(encoded_id);
+    int64_t encoded_offset = get_encoded_offset(encoded_id);
+    int32_t size = 0;
+    if (m_logtypes.size() > (index + 1)) {
+        size = get_encoded_offset(m_logtypes[index + 1]) - encoded_offset;
+    } else {
+        size = m_encoded_vars.size() - encoded_offset;
+    }
+    write_numeric_value(dest, encoded_log_type);
+    if (size > 0) {
+        write_numeric_values(dest, &m_encoded_vars.data()[encoded_offset], size);
+    }
+}
+
+void ClpStringColumnWriter::combine(BaseColumnWriter* writer_base) {
+    ClpStringColumnWriter* writer = (ClpStringColumnWriter*)writer_base;
+    size_t current_vars_size = m_encoded_vars.size();
+    m_encoded_vars.insert(
+            m_encoded_vars.end(),
+            writer->m_encoded_vars.begin(),
+            writer->m_encoded_vars.end()
+    );
+
+    m_logtypes.reserve(m_logtypes.size() + writer->m_logtypes.size());
+
+    for (uint64_t encoded_id : writer->m_logtypes) {
+        auto id = get_encoded_log_dict_id(encoded_id);
+        auto offset = get_encoded_offset(encoded_id);
+        m_logtypes.push_back(encode_log_dict_id(id, offset + current_vars_size));
+    }
+
+    delete writer_base;
+}
+
 void ClpStringColumnWriter::store(ZstdCompressor& compressor) {
     compressor.write(
             reinterpret_cast<char const*>(m_logtypes.data()),
@@ -90,6 +178,16 @@ void VariableStringColumnWriter::add_value(
     m_schema_node->mark_node_value(id, string_var);
 }
 
+void VariableStringColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
+    write_numeric_value(dest, m_variables[index]);
+}
+
+void VariableStringColumnWriter::combine(BaseColumnWriter* writer_base) {
+    VariableStringColumnWriter* writer = (VariableStringColumnWriter*)writer_base;
+    m_variables.insert(m_variables.end(), writer->m_variables.begin(), writer->m_variables.end());
+    delete writer_base;
+}
+
 void VariableStringColumnWriter::store(ZstdCompressor& compressor) {
     compressor.write(
             reinterpret_cast<char const*>(m_variables.data()),
@@ -109,6 +207,23 @@ void DateStringColumnWriter::add_value(
 
     m_timestamps.push_back(timestamp);
     m_timestamp_encodings.push_back(encoding_id);
+}
+
+void DateStringColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
+    write_numeric_value(dest, m_timestamps[index]);
+    write_numeric_value(dest, m_timestamp_encodings);
+}
+
+void DateStringColumnWriter::combine(BaseColumnWriter* writer_base) {
+    DateStringColumnWriter* writer = (DateStringColumnWriter*)writer_base;
+    m_timestamps
+            .insert(m_timestamps.end(), writer->m_timestamps.begin(), writer->m_timestamps.end());
+    m_timestamp_encodings.insert(
+            m_timestamp_encodings.end(),
+            writer->m_timestamp_encodings.begin(),
+            writer->m_timestamp_encodings.end()
+    );
+    delete writer_base;
 }
 
 void DateStringColumnWriter::store(ZstdCompressor& compressor) {
@@ -134,10 +249,136 @@ void FloatDateStringColumnWriter::add_value(
     m_timestamps.push_back(timestamp);
 }
 
+void FloatDateStringColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
+    write_numeric_value(dest, m_timestamps[index]);
+}
+
+void FloatDateStringColumnWriter::combine(BaseColumnWriter* writer_base) {
+    FloatDateStringColumnWriter* writer = (FloatDateStringColumnWriter*)writer_base;
+    m_timestamps
+            .insert(m_timestamps.end(), writer->m_timestamps.begin(), writer->m_timestamps.end());
+    delete writer_base;
+}
+
 void FloatDateStringColumnWriter::store(ZstdCompressor& compressor) {
     compressor.write(
             reinterpret_cast<char const*>(m_timestamps.data()),
             m_timestamps.size() * sizeof(double)
     );
 }
+
+void TruncatedObjectColumnWriter::merge_column(
+        BaseColumnWriter* writer,
+        std::shared_ptr<SchemaTree> global_tree
+) {
+    auto const& global_node = global_tree->get_node(writer->get_id());
+    int32_t parent_id = global_node->get_parent_id();
+    if (parent_id != -1 && m_global_id_to_local.find(parent_id) == m_global_id_to_local.end()) {
+        if (global_tree->get_node(parent_id)->get_state() == NodeValueState::TRUNCATED) {
+            merge_column(parent_id, global_tree);
+        }
+    }
+
+    auto it = m_global_id_to_local.find(parent_id);
+    if (it != m_global_id_to_local.end()) {
+        parent_id = it->second;
+    } else {
+        parent_id = -1;
+    }
+
+    int32_t local_id = m_local_tree.add_node(
+            parent_id,
+            global_node->get_type(),
+            global_node->get_key_name()
+    );
+    m_local_id_to_column[local_id] = writer;
+}
+
+void TruncatedObjectColumnWriter::merge_column(
+        int32_t global_id,
+        std::shared_ptr<SchemaTree> global_tree
+) {
+    auto const& global_node = global_tree->get_node(global_id);
+    int32_t parent_id = global_node->get_parent_id();
+    if (parent_id != -1
+        && global_tree->get_node(parent_id)->get_state() == NodeValueState::TRUNCATED)
+    {
+        if (m_global_id_to_local.find(parent_id) == m_global_id_to_local.end()) {
+            merge_column(parent_id, global_tree);
+        }
+
+        auto it = m_global_id_to_local.find(parent_id);
+        int32_t new_parent_id = -1;
+        if (it != m_global_id_to_local.end()) {
+            new_parent_id = it->second;
+        }
+        m_local_tree.add_node(new_parent_id, global_node->get_type(), global_node->get_key_name());
+    }
+}
+
+void TruncatedObjectColumnWriter::local_merge_column_values(uint64_t num_messages) {
+    m_schemas.resize(num_messages);
+    m_values.resize(num_messages);
+    std::vector<uint8_t> schema;
+
+    std::set<int32_t> visited;
+    for (auto const& node : m_local_tree.get_nodes()) {
+        visit(schema, visited, node);
+    }
+
+    for (std::vector<uint8_t>& s : m_schemas) {
+        s = schema;
+    }
+}
+
+void TruncatedObjectColumnWriter::visit(
+        std::vector<uint8_t>& schema,
+        std::set<int32_t>& visited,
+        std::shared_ptr<SchemaNode> const& node
+) {
+    if (visited.count(node->get_id())) {
+        return;
+    }
+
+    visited.insert(node->get_id());
+
+    uint8_t node_type = static_cast<uint8_t>(node->get_type());
+    schema.push_back(node_type);
+    write_string(schema, node->get_key_name());
+
+    if (node->get_type() != NodeType::OBJECT) {
+        size_t idx = 0;
+        BaseColumnWriter* old_writer = m_local_id_to_column.at(node->get_id());
+        for (auto it = m_values.begin(); it != m_values.end(); ++it) {
+            old_writer->write_local_value(*it, idx);
+            ++idx;
+        }
+    }
+
+    for (int32_t child : node->get_children_ids()) {
+        visit(schema, visited, m_local_tree.get_node(child));
+    }
+}
+
+void TruncatedObjectColumnWriter::combine(BaseColumnWriter* writer_base) {
+    TruncatedObjectColumnWriter* writer = (TruncatedObjectColumnWriter*)writer_base;
+    m_values.merge(writer->m_values);
+    m_schemas.merge(writer->m_schemas);
+    delete writer_base;
+}
+
+void TruncatedObjectColumnWriter::store(ZstdCompressor& compressor) {
+    // need some header bytes to help retrieve this stuff if we want to be
+    // able to decompress it
+    // won't worry about that for now though
+    auto sit = m_schemas.begin();
+    auto vit = m_values.begin();
+    for (; sit != m_schemas.end();) {
+        compressor.write((char const*)(*sit).data(), (*sit).size());
+        compressor.write((char const*)(*vit).data(), (*vit).size());
+        ++sit;
+        ++vit;
+    }
+}
+
 }  // namespace clp_structured

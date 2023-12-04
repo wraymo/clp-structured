@@ -6,6 +6,7 @@
 #include "ColumnWriter.hpp"
 #include "FileWriter.hpp"
 #include "ParsedMessage.hpp"
+#include "SchemaTree.hpp"
 #include "ZstdCompressor.hpp"
 
 namespace clp_structured {
@@ -38,6 +39,11 @@ public:
     size_t append_message(ParsedMessage& message);
 
     /**
+     * Combine with another SchemaWriter with an identical schema
+     */
+    void combine(SchemaWriter* writer);
+
+    /**
      * Stores the schema to disk.
      */
     void store();
@@ -51,7 +57,10 @@ public:
      * Updates the schema writer, potentially deleting and merging
      * some columns
      */
-    void update_schema(std::vector<std::pair<int32_t, int32_t>> const& udpates);
+    void update_schema(
+            std::shared_ptr<SchemaTree> tree,
+            std::vector<std::pair<int32_t, int32_t>> const& udpates
+    );
 
 private:
     FileWriter m_file_writer;

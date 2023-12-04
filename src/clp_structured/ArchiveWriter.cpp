@@ -42,7 +42,7 @@ void ArchiveWriter::open(ArchiveWriterOption const& option) {
 }
 
 void ArchiveWriter::close() {
-    auto changed_nodes = m_schema_tree->modify_nodes_based_on_frequency();
+    auto changed_nodes = m_schema_tree->modify_nodes_based_on_frequency(m_num_encoded_messages);
     m_var_dict->close();
     m_log_dict->close();
     m_array_dict->close();
@@ -72,20 +72,38 @@ void ArchiveWriter::close() {
         schema_id_to_schema_changes[it->second] = {new_schema_id, std::move(schema_changes)};
     }
 
+    std::map<int32_t, std::vector<SchemaWriter*>> updated_schema_id_to_writer;
+
     for (auto& i : m_schema_id_to_writer) {
         int32_t schema_id = i.first;
         auto change_it = schema_id_to_schema_changes.find(i.first);
         if (change_it != schema_id_to_schema_changes.end()) {
-            schema_id = change_it->second.first;
-            i.second->update_schema(change_it->second.second);
+            updated_schema_id_to_writer[change_it->second.first].push_back(i.second);
+            i.second->update_schema(m_schema_tree, change_it->second.second);
+        } else {
+            i.second->open(
+                    m_encoded_messages_dir + "/" + std::to_string(schema_id),
+                    m_compression_level
+            );
+            i.second->store();
+            i.second->close();
+            delete i.second;
         }
-        i.second->open(
-                m_encoded_messages_dir + "/" + std::to_string(schema_id),
-                m_compression_level
-        );
-        i.second->store();
-        i.second->close();
-        delete i.second;
+    }
+
+    for (auto it = updated_schema_id_to_writer.begin(); it != updated_schema_id_to_writer.end();
+         ++it)
+    {
+        auto sit = it->second.begin();
+        SchemaWriter* writer = *sit;
+        ++sit;
+        for (; sit != it->second.end(); ++sit) {
+            writer->combine(*sit);
+        }
+        writer->open(m_encoded_messages_dir + "/" + std::to_string(it->first), m_compression_level);
+        writer->store();
+        writer->close();
+        delete writer;
     }
 
     m_schema_id_to_writer.clear();
@@ -107,6 +125,7 @@ void ArchiveWriter::append_message(
         m_schema_id_to_writer[schema_id] = schema_writer;
     }
 
+    m_num_encoded_messages += 1;
     m_encoded_message_size += schema_writer->append_message(message);
 }
 

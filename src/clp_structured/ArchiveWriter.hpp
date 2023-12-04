@@ -40,6 +40,7 @@ public:
             std::shared_ptr<SchemaMap>& schema_map
     )
             : m_encoded_message_size(0UL),
+              m_num_encoded_messages(0UL),
               m_schema_tree(std::move(schema_tree)),
               m_timestamp_dict(std::move(timestamp_dict)),
               m_schema_map(schema_map) {}
@@ -68,6 +69,11 @@ public:
      */
     size_t get_data_size();
 
+    /**
+     * @return Number of records encoded in the archive
+     */
+    size_t get_num_records() { return m_num_encoded_messages; }
+
 private:
     /**
      * Initializes the schema writer
@@ -77,6 +83,7 @@ private:
     void initialize_schema_writer(SchemaWriter* writer, std::set<int32_t>& schema);
 
     size_t m_encoded_message_size;
+    size_t m_num_encoded_messages;
 
     boost::uuids::uuid m_id{};
 

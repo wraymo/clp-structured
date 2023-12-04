@@ -31,6 +31,10 @@ public:
     virtual void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size)
             = 0;
 
+    virtual void write_local_value(std::vector<uint8_t>& dest, size_t index) = 0;
+
+    virtual void combine(BaseColumnWriter* writer) = 0;
+
     /**
      * Stores the column to a compressed file
      * @param compressor
@@ -64,6 +68,10 @@ public:
     // Methods inherited from BaseColumnWriter
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override;
 
+    void write_local_value(std::vector<uint8_t>& dest, size_t index) override;
+
+    void combine(BaseColumnWriter* writer) override;
+
     void store(ZstdCompressor& compressor) override;
 
 private:
@@ -82,6 +90,10 @@ public:
     // Methods inherited from BaseColumnWriter
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override;
 
+    void write_local_value(std::vector<uint8_t>& dest, size_t index) override;
+
+    void combine(BaseColumnWriter* writer) override;
+
     void store(ZstdCompressor& compressor) override;
 
 private:
@@ -99,6 +111,10 @@ public:
 
     // Methods inherited from BaseColumnWriter
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override;
+
+    void write_local_value(std::vector<uint8_t>& dest, size_t index) override;
+
+    void combine(BaseColumnWriter* writer) override;
 
     void store(ZstdCompressor& compressor) override;
 
@@ -124,6 +140,10 @@ public:
 
     // Methods inherited from BaseColumnWriter
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override;
+
+    void write_local_value(std::vector<uint8_t>& dest, size_t index) override;
+
+    void combine(BaseColumnWriter* writer) override;
 
     void store(ZstdCompressor& compressor) override;
 
@@ -185,6 +205,10 @@ public:
     // Methods inherited from BaseColumnWriter
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override;
 
+    void write_local_value(std::vector<uint8_t>& dest, size_t index) override;
+
+    void combine(BaseColumnWriter* writer) override;
+
     void store(ZstdCompressor& compressor) override;
 
 private:
@@ -209,6 +233,10 @@ public:
 
     // Methods inherited from BaseColumnWriter
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override;
+
+    void write_local_value(std::vector<uint8_t>& dest, size_t index) override;
+
+    void combine(BaseColumnWriter* writer) override;
 
     void store(ZstdCompressor& compressor) override;
 
@@ -236,6 +264,10 @@ public:
     // Methods inherited from BaseColumnWriter
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override;
 
+    void write_local_value(std::vector<uint8_t>& dest, size_t index) override;
+
+    void combine(BaseColumnWriter* writer) override;
+
     void store(ZstdCompressor& compressor) override;
 
 private:
@@ -243,6 +275,46 @@ private:
 
     std::vector<double> m_timestamps;
 };
+
+class TruncatedObjectColumnWriter : public BaseColumnWriter {
+public:
+    // Constructor
+    explicit TruncatedObjectColumnWriter(std::string name, int32_t id)
+            : BaseColumnWriter(std::move(name), id) {}
+
+    // Destructor
+    ~TruncatedObjectColumnWriter() override = default;
+
+    // Methods inherited from BaseColumnWriter
+    void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override {
+    }
+
+    void write_local_value(std::vector<uint8_t>& dest, size_t index) override {}
+
+    void merge_column(BaseColumnWriter* writer, std::shared_ptr<SchemaTree> global_tree);
+
+    void local_merge_column_values(uint64_t num_messsages);
+
+    void combine(BaseColumnWriter* writer) override;
+
+    void store(ZstdCompressor& compressor) override;
+
+private:
+    void merge_column(int32_t global_id, std::shared_ptr<SchemaTree> global_tree);
+
+    void visit(
+            std::vector<uint8_t>& schema,
+            std::set<int32_t>& visited,
+            std::shared_ptr<SchemaNode> const& node
+    );
+
+    SchemaTree m_local_tree;
+    std::map<int32_t, BaseColumnWriter*> m_local_id_to_column;
+    std::map<int32_t, int32_t> m_global_id_to_local;
+    std::list<std::vector<uint8_t>> m_values;
+    std::list<std::vector<uint8_t>> m_schemas;
+};
+
 }  // namespace clp_structured
 
 #endif  // CLP_STRUCTURED_COLUMNWRITER_HPP

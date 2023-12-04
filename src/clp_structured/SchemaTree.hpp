@@ -22,13 +22,16 @@ enum class NodeType : uint8_t {
     NULLVALUE,
     DATESTRING,
     FLOATDATESTRING,
-    VARVALUE
+    VARVALUE,
+    TRUNCATEDOBJECT,  // these two types are nominally the same for encoding, but have
+    TRUNCATEDCHILDREN  // different search semantics, so they must be distinguished
 };
 
 enum class NodeValueState {
     UNINITIALIZED,
     CARDINALITY_ONE,
-    CARDINALITY_MANY
+    CARDINALITY_MANY,
+    TRUNCATED
 };
 
 class SchemaNode {
@@ -130,11 +133,11 @@ public:
     std::vector<std::shared_ptr<SchemaNode>> const& get_nodes() const { return m_nodes; }
 
     /**
-     * Scan through all nodes
+     * Scan through all nodes and modify their state based on frequency statistics
      *
      * @return the list of nodes that have been changed, and their new IDs
      */
-    std::vector<std::pair<int32_t, int32_t>> modify_nodes_based_on_frequency();
+    std::vector<std::pair<int32_t, int32_t>> modify_nodes_based_on_frequency(size_t num_records);
 
 private:
     std::vector<std::shared_ptr<SchemaNode>> m_nodes;
