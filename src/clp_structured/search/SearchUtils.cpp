@@ -37,6 +37,9 @@ namespace clp_structured { namespace search {
                 return LiteralType::EpochDateT;
             case NodeType::FLOATDATESTRING:
                 return LiteralType::FloatDateT;
+            case NodeType::TRUNCATEDCHILDREN:  // force no match because unsearchable
+            case NodeType::TRUNCATEDOBJECT:
+                return LiteralType::UnknownT;
             default:
                 return LiteralType::UnknownT;
         }

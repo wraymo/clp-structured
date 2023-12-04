@@ -214,6 +214,14 @@ void SchemaReader::generate_json_template(json& object, int32_t id, std::string&
                 object[key] = nullptr;
                 break;
             }
+            case NodeType::TRUNCATEDCHILDREN: {
+                object[key] = nullptr;
+                break;
+            }
+            case NodeType::TRUNCATEDOBJECT: {
+                object[key] = nullptr;
+                break;
+            }
         }
     }
 }

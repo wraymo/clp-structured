@@ -31,7 +31,8 @@ public:
     virtual void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size)
             = 0;
 
-    virtual void write_local_value(std::vector<uint8_t>& dest, size_t index) = 0;
+    virtual void write_local_value(std::vector<uint8_t>& dest, size_t index, size_t& total_size)
+            = 0;
 
     virtual void combine(BaseColumnWriter* writer) = 0;
 
@@ -68,7 +69,7 @@ public:
     // Methods inherited from BaseColumnWriter
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override;
 
-    void write_local_value(std::vector<uint8_t>& dest, size_t index) override;
+    void write_local_value(std::vector<uint8_t>& dest, size_t index, size_t& total_size) override;
 
     void combine(BaseColumnWriter* writer) override;
 
@@ -90,7 +91,7 @@ public:
     // Methods inherited from BaseColumnWriter
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override;
 
-    void write_local_value(std::vector<uint8_t>& dest, size_t index) override;
+    void write_local_value(std::vector<uint8_t>& dest, size_t index, size_t& total_size) override;
 
     void combine(BaseColumnWriter* writer) override;
 
@@ -112,7 +113,7 @@ public:
     // Methods inherited from BaseColumnWriter
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override;
 
-    void write_local_value(std::vector<uint8_t>& dest, size_t index) override;
+    void write_local_value(std::vector<uint8_t>& dest, size_t index, size_t& total_size) override;
 
     void combine(BaseColumnWriter* writer) override;
 
@@ -141,7 +142,7 @@ public:
     // Methods inherited from BaseColumnWriter
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override;
 
-    void write_local_value(std::vector<uint8_t>& dest, size_t index) override;
+    void write_local_value(std::vector<uint8_t>& dest, size_t index, size_t& total_size) override;
 
     void combine(BaseColumnWriter* writer) override;
 
@@ -205,7 +206,7 @@ public:
     // Methods inherited from BaseColumnWriter
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override;
 
-    void write_local_value(std::vector<uint8_t>& dest, size_t index) override;
+    void write_local_value(std::vector<uint8_t>& dest, size_t index, size_t& total_size) override;
 
     void combine(BaseColumnWriter* writer) override;
 
@@ -234,7 +235,7 @@ public:
     // Methods inherited from BaseColumnWriter
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override;
 
-    void write_local_value(std::vector<uint8_t>& dest, size_t index) override;
+    void write_local_value(std::vector<uint8_t>& dest, size_t index, size_t& total_size) override;
 
     void combine(BaseColumnWriter* writer) override;
 
@@ -264,7 +265,7 @@ public:
     // Methods inherited from BaseColumnWriter
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override;
 
-    void write_local_value(std::vector<uint8_t>& dest, size_t index) override;
+    void write_local_value(std::vector<uint8_t>& dest, size_t index, size_t& total_size) override;
 
     void combine(BaseColumnWriter* writer) override;
 
@@ -280,7 +281,8 @@ class TruncatedObjectColumnWriter : public BaseColumnWriter {
 public:
     // Constructor
     explicit TruncatedObjectColumnWriter(std::string name, int32_t id)
-            : BaseColumnWriter(std::move(name), id) {}
+            : BaseColumnWriter(std::move(name), id),
+              m_num_bytes(0) {}
 
     // Destructor
     ~TruncatedObjectColumnWriter() override = default;
@@ -289,7 +291,7 @@ public:
     void add_value(std::variant<int64_t, double, std::string, bool>& value, size_t& size) override {
     }
 
-    void write_local_value(std::vector<uint8_t>& dest, size_t index) override {}
+    void write_local_value(std::vector<uint8_t>& dest, size_t index, size_t& total_size) override {}
 
     void merge_column(BaseColumnWriter* writer, std::shared_ptr<SchemaTree> global_tree);
 
@@ -313,6 +315,7 @@ private:
     std::map<int32_t, int32_t> m_global_id_to_local;
     std::list<std::vector<uint8_t>> m_values;
     std::list<std::vector<uint8_t>> m_schemas;
+    size_t m_num_bytes;
 };
 
 }  // namespace clp_structured

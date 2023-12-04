@@ -42,6 +42,21 @@ int32_t SchemaTree::add_node(int32_t parent_node_id, NodeType type, std::string 
     return node_id;
 }
 
+int32_t SchemaTree::add_node_decompression(
+        int node_id,
+        int parent_node_id,
+        NodeType type,
+        std::string const& key
+) {
+    auto node = std::make_shared<SchemaNode>(parent_node_id, node_id, key, type);
+    m_nodes[node_id] = node;
+    if (parent_node_id >= 0) {
+        m_nodes[parent_node_id]->add_child(node_id);
+    }
+
+    return node->get_id();
+}
+
 std::vector<std::pair<int32_t, int32_t>> SchemaTree::modify_nodes_based_on_frequency(
         size_t num_records
 ) {
@@ -74,7 +89,13 @@ std::vector<std::pair<int32_t, int32_t>> SchemaTree::modify_nodes_based_on_frequ
 
         auto node = get_node(*it);
 
-        if (node->get_count() <= lower_bound) {
+        // FIXME: this state machine probably doesn't always work during archive splitting.
+        // should rewrite to carefully handle all edge cases
+        // however we're pretty unlikely to run into those edge cases for now, so it should be fine
+        if (node->get_count() <= lower_bound && node->get_type() != NodeType::TRUNCATEDCHILDREN
+            && node->get_type() != NodeType::TRUNCATEDOBJECT
+            && node->get_type() != NodeType::VARVALUE)
+        {
             node->set_state(NodeValueState::TRUNCATED);
             if (this->get_node(node->get_parent_id())->get_state() == NodeValueState::TRUNCATED
                 && node->get_type() != NodeType::OBJECT)

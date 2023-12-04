@@ -40,7 +40,7 @@ size_t SchemaWriter::append_message(ParsedMessage& message) {
 void SchemaWriter::store() {
     m_file_writer.open(m_path, FileWriter::OpenMode::CreateForWriting);
     m_file_writer.write_numeric_value(m_num_messages);
-    m_compressor.open(m_file_writer, m_compression_level);
+    m_compressor.open(m_file_writer, m_compression_level);  // 4300
 
     for (auto& writer : m_columns) {
         writer->store(m_compressor);
@@ -77,7 +77,8 @@ void SchemaWriter::update_schema(
             if (update.first == column_id) {
                 new_column_id = update.second;
                 auto new_type = tree->get_node(update.second)->get_type();
-                if (new_type == NodeType::TRUNCATEDOBJECT || new_type == NodeType::TRUNCATEDOBJECT)
+                if (new_type == NodeType::TRUNCATEDOBJECT
+                    || new_type == NodeType::TRUNCATEDCHILDREN)
                 {
                     auto it = new_columns_map.find(update.second);
                     TruncatedObjectColumnWriter* new_writer = nullptr;

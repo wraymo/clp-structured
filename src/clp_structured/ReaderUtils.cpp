@@ -16,11 +16,18 @@ std::shared_ptr<SchemaTree> ReaderUtils::read_schema_tree(std::string const& arc
         throw OperationFailed(error_code, __FILENAME__, __LINE__);
     }
 
+    tree->resize_decompression(num_nodes);
     for (size_t i = 0; i < num_nodes; i++) {
+        int32_t id;
         int32_t parent_id;
         size_t key_length;
         std::string key;
         uint8_t node_type;
+
+        error_code = schema_tree_decompressor.try_read_numeric_value(id);
+        if (ErrorCodeSuccess != error_code) {
+            throw OperationFailed(error_code, __FILENAME__, __LINE__);
+        }
 
         error_code = schema_tree_decompressor.try_read_numeric_value(parent_id);
         if (ErrorCodeSuccess != error_code) {
@@ -42,7 +49,11 @@ std::shared_ptr<SchemaTree> ReaderUtils::read_schema_tree(std::string const& arc
             throw OperationFailed(error_code, __FILENAME__, __LINE__);
         }
 
-        tree->add_node(parent_id, (NodeType)node_type, key);
+        if (id >= num_nodes) {
+            tree->resize_decompression(id + (num_nodes - i));
+        }
+
+        tree->add_node_decompression(id, parent_id, (NodeType)node_type, key);
     }
 
     schema_tree_decompressor.close();
@@ -220,6 +231,10 @@ void ReaderUtils::append_reader_columns(
                 break;
             case NodeType::FLOATDATESTRING:
                 reader->append_column(new FloatDateStringColumnReader(key_name, column));
+                break;
+            case NodeType::TRUNCATEDOBJECT:
+            case NodeType::TRUNCATEDCHILDREN:
+                reader->append_column(new TruncatedObjectColumnReader(key_name, column));
                 break;
             case NodeType::OBJECT:
             case NodeType::NULLVALUE:

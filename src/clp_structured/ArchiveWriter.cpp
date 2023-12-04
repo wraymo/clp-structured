@@ -81,6 +81,7 @@ void ArchiveWriter::close() {
             updated_schema_id_to_writer[change_it->second.first].push_back(i.second);
             i.second->update_schema(m_schema_tree, change_it->second.second);
         } else {
+            m_schema_map->mark_used(schema_id);
             i.second->open(
                     m_encoded_messages_dir + "/" + std::to_string(schema_id),
                     m_compression_level
@@ -100,6 +101,7 @@ void ArchiveWriter::close() {
         for (; sit != it->second.end(); ++sit) {
             writer->combine(*sit);
         }
+        m_schema_map->mark_used(it->first);
         writer->open(m_encoded_messages_dir + "/" + std::to_string(it->first), m_compression_level);
         writer->store();
         writer->close();

@@ -338,14 +338,17 @@ void JsonParser::store() {
     schema_tree_compressor.open(schema_tree_writer, m_compression_level);
 
     auto nodes = m_schema_tree->get_nodes();
-    schema_tree_compressor.write_numeric_value(nodes.size());
+    schema_tree_compressor.write_numeric_value(count_after_trunc);
     for (auto const& node : nodes) {
-        schema_tree_compressor.write_numeric_value(node->get_parent_id());
+        if (node->get_state() != NodeValueState::TRUNCATED) {
+            schema_tree_compressor.write_numeric_value(node->get_id());
+            schema_tree_compressor.write_numeric_value(node->get_parent_id());
 
-        std::string const& key = node->get_key_name();
-        schema_tree_compressor.write_numeric_value(key.size());
-        schema_tree_compressor.write_string(key);
-        schema_tree_compressor.write_numeric_value(node->get_type());
+            std::string const& key = node->get_key_name();
+            schema_tree_compressor.write_numeric_value(key.size());
+            schema_tree_compressor.write_string(key);
+            schema_tree_compressor.write_numeric_value(node->get_type());
+        }
     }
 
     schema_tree_compressor.close();

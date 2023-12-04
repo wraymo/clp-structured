@@ -33,7 +33,12 @@ void Int64ColumnWriter::add_value(
     m_values.push_back(std::get<int64_t>(value));
 }
 
-void Int64ColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
+void Int64ColumnWriter::write_local_value(
+        std::vector<uint8_t>& dest,
+        size_t index,
+        size_t& total_bytes
+) {
+    total_bytes += sizeof(int64_t);
     write_numeric_value(dest, m_values[index]);
 }
 
@@ -57,7 +62,12 @@ void FloatColumnWriter::add_value(
     m_values.push_back(std::get<double>(value));
 }
 
-void FloatColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
+void FloatColumnWriter::write_local_value(
+        std::vector<uint8_t>& dest,
+        size_t index,
+        size_t& total_bytes
+) {
+    total_bytes += sizeof(double);
     write_numeric_value(dest, m_values[index]);
 }
 
@@ -81,7 +91,12 @@ void BooleanColumnWriter::add_value(
     m_values.push_back(std::get<bool>(value) ? 1 : 0);
 }
 
-void BooleanColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
+void BooleanColumnWriter::write_local_value(
+        std::vector<uint8_t>& dest,
+        size_t index,
+        size_t& total_bytes
+) {
+    total_bytes += sizeof(uint8_t);
     write_numeric_value(dest, m_values[index]);
 }
 
@@ -117,7 +132,11 @@ void ClpStringColumnWriter::add_value(
     size += sizeof(int64_t) * (m_encoded_vars.size() - offset);
 }
 
-void ClpStringColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
+void ClpStringColumnWriter::write_local_value(
+        std::vector<uint8_t>& dest,
+        size_t index,
+        size_t& total_bytes
+) {
     uint64_t encoded_id = m_logtypes[index];
     int32_t encoded_log_type = get_encoded_log_dict_id(encoded_id);
     int64_t encoded_offset = get_encoded_offset(encoded_id);
@@ -127,8 +146,10 @@ void ClpStringColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t
     } else {
         size = m_encoded_vars.size() - encoded_offset;
     }
+    total_bytes += sizeof(encoded_log_type);
     write_numeric_value(dest, encoded_log_type);
     if (size > 0) {
+        total_bytes += sizeof(int64_t) * size;
         write_numeric_values<int64_t>(dest, &m_encoded_vars.data()[encoded_offset], size);
     }
 }
@@ -175,7 +196,12 @@ void VariableStringColumnWriter::add_value(
     m_schema_node->mark_node_value(id, string_var);
 }
 
-void VariableStringColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
+void VariableStringColumnWriter::write_local_value(
+        std::vector<uint8_t>& dest,
+        size_t index,
+        size_t& total_bytes
+) {
+    total_bytes += sizeof(int64_t);
     write_numeric_value(dest, m_variables[index]);
 }
 
@@ -205,7 +231,12 @@ void DateStringColumnWriter::add_value(
     m_timestamp_encodings.push_back(encoding_id);
 }
 
-void DateStringColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
+void DateStringColumnWriter::write_local_value(
+        std::vector<uint8_t>& dest,
+        size_t index,
+        size_t& total_bytes
+) {
+    total_bytes += 2 * sizeof(int64_t);
     write_numeric_value(dest, m_timestamps[index]);
     write_numeric_value(dest, m_timestamp_encodings[index]);
 }
@@ -244,7 +275,12 @@ void FloatDateStringColumnWriter::add_value(
     m_timestamps.push_back(timestamp);
 }
 
-void FloatDateStringColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
+void FloatDateStringColumnWriter::write_local_value(
+        std::vector<uint8_t>& dest,
+        size_t index,
+        size_t& total_bytes
+) {
+    total_bytes += sizeof(double);
     write_numeric_value(dest, m_timestamps[index]);
 }
 
@@ -314,6 +350,7 @@ void TruncatedObjectColumnWriter::local_merge_column_values(uint64_t num_message
     m_schemas.resize(num_messages);
     m_values.resize(num_messages);
     std::vector<uint8_t> schema;
+    schema.push_back(0);
 
     std::set<int32_t> visited;
     for (auto const& node : m_local_tree.get_nodes()) {
@@ -322,6 +359,7 @@ void TruncatedObjectColumnWriter::local_merge_column_values(uint64_t num_message
 
     for (std::vector<uint8_t>& s : m_schemas) {
         s = schema;
+        m_num_bytes += schema.size();
     }
 }
 
@@ -336,6 +374,9 @@ void TruncatedObjectColumnWriter::visit(
 
     visited.insert(node->get_id());
 
+    // this assumes that each subtree is at most 256 nodes at a time,
+    // which is probably unsafe, but good enough for now
+    schema[0] += 1;
     uint8_t node_type = static_cast<uint8_t>(node->get_type());
     schema.push_back(node_type);
     write_string(schema, node->get_key_name());
@@ -344,7 +385,7 @@ void TruncatedObjectColumnWriter::visit(
         size_t idx = 0;
         BaseColumnWriter* old_writer = m_local_id_to_column.at(node->get_id());
         for (auto it = m_values.begin(); it != m_values.end(); ++it) {
-            old_writer->write_local_value(*it, idx);
+            old_writer->write_local_value(*it, idx, m_num_bytes);
             ++idx;
         }
     }
@@ -358,12 +399,11 @@ void TruncatedObjectColumnWriter::combine(BaseColumnWriter* writer_base) {
     TruncatedObjectColumnWriter* writer = (TruncatedObjectColumnWriter*)writer_base;
     m_values.merge(writer->m_values);
     m_schemas.merge(writer->m_schemas);
+    m_num_bytes += writer->m_num_bytes;
 }
 
 void TruncatedObjectColumnWriter::store(ZstdCompressor& compressor) {
-    // need some header bytes to help retrieve this stuff if we want to be
-    // able to decompress it
-    // won't worry about that for now though
+    compressor.write_numeric_value(m_num_bytes);
     auto sit = m_schemas.begin();
     auto vit = m_values.begin();
     for (; sit != m_schemas.end();) {

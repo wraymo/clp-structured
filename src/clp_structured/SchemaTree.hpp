@@ -118,6 +118,11 @@ public:
 
     int32_t add_node(int parent_node_id, NodeType type, std::string const& key);
 
+    void resize_decompression(size_t new_size) { m_nodes.resize(new_size); }
+
+    int32_t
+    add_node_decompression(int node_id, int parent_node_id, NodeType type, std::string const& key);
+
     bool has_node(int32_t id) { return id < m_nodes.size() && id >= 0; }
 
     std::shared_ptr<SchemaNode> get_node(int32_t id) {
