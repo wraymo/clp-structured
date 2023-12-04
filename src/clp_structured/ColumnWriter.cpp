@@ -2,25 +2,27 @@
 
 namespace clp_structured {
 template <typename T>
-static void write_numeric_value(std::vector<uint8_t>& target, T value, bool reserve = true) {
-    if (reserve) {
-        target.reserve(target.size() + sizeof(T));
-    }
-    memcpy(&target.back(), &value, sizeof(T));
+static void write_numeric_value(std::vector<uint8_t>& target, T value) {
+    target.resize(target.size() + sizeof(T));
+    uint8_t* addr = &target.back() - sizeof(T) + 1;
+    memcpy(addr, &value, sizeof(T));
 }
 
 template <typename T>
 static void write_numeric_values(std::vector<uint8_t>& target, T* value, size_t size) {
-    target.reserve(target.size() + sizeof(T) * size);
-    memcpy(&target.back(), &value, sizeof(T) * size);
+    target.resize(target.size() + sizeof(T) * size);
+    uint8_t* addr = &target.back() - sizeof(T) * size + 1;
+    memcpy(addr, &value, sizeof(T) * size);
 }
 
 static void write_string(std::vector<uint8_t>& target, std::string const& value) {
-    target.reserve(target.size() + value.size() + sizeof(uint16_t));
+    target.resize(target.size() + value.size() + sizeof(uint16_t));
+    uint8_t* addr = &target.back() - (value.size() + sizeof(uint16_t)) + 1;
     uint16_t size = value.size();
-    write_numeric_value(target, size, false);
+    memcpy(addr, &size, sizeof(uint16_t));
+    addr += sizeof(uint16_t);
 
-    memcpy(&target.back(), value.data(), size);
+    memcpy(addr, value.data(), size);
 }
 
 void Int64ColumnWriter::add_value(
@@ -38,7 +40,6 @@ void Int64ColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t ind
 void Int64ColumnWriter::combine(BaseColumnWriter* writer_base) {
     Int64ColumnWriter* writer = (Int64ColumnWriter*)writer_base;
     m_values.insert(m_values.end(), writer->m_values.begin(), writer->m_values.end());
-    delete writer_base;
 }
 
 void Int64ColumnWriter::store(ZstdCompressor& compressor) {
@@ -63,7 +64,6 @@ void FloatColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t ind
 void FloatColumnWriter::combine(BaseColumnWriter* writer_base) {
     FloatColumnWriter* writer = (FloatColumnWriter*)writer_base;
     m_values.insert(m_values.end(), writer->m_values.begin(), writer->m_values.end());
-    delete writer_base;
 }
 
 void FloatColumnWriter::store(ZstdCompressor& compressor) {
@@ -88,7 +88,6 @@ void BooleanColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t i
 void BooleanColumnWriter::combine(BaseColumnWriter* writer_base) {
     BooleanColumnWriter* writer = (BooleanColumnWriter*)writer_base;
     m_values.insert(m_values.end(), writer->m_values.begin(), writer->m_values.end());
-    delete writer_base;
 }
 
 void BooleanColumnWriter::store(ZstdCompressor& compressor) {
@@ -130,7 +129,7 @@ void ClpStringColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t
     }
     write_numeric_value(dest, encoded_log_type);
     if (size > 0) {
-        write_numeric_values(dest, &m_encoded_vars.data()[encoded_offset], size);
+        write_numeric_values<int64_t>(dest, &m_encoded_vars.data()[encoded_offset], size);
     }
 }
 
@@ -150,8 +149,6 @@ void ClpStringColumnWriter::combine(BaseColumnWriter* writer_base) {
         auto offset = get_encoded_offset(encoded_id);
         m_logtypes.push_back(encode_log_dict_id(id, offset + current_vars_size));
     }
-
-    delete writer_base;
 }
 
 void ClpStringColumnWriter::store(ZstdCompressor& compressor) {
@@ -185,7 +182,6 @@ void VariableStringColumnWriter::write_local_value(std::vector<uint8_t>& dest, s
 void VariableStringColumnWriter::combine(BaseColumnWriter* writer_base) {
     VariableStringColumnWriter* writer = (VariableStringColumnWriter*)writer_base;
     m_variables.insert(m_variables.end(), writer->m_variables.begin(), writer->m_variables.end());
-    delete writer_base;
 }
 
 void VariableStringColumnWriter::store(ZstdCompressor& compressor) {
@@ -211,7 +207,7 @@ void DateStringColumnWriter::add_value(
 
 void DateStringColumnWriter::write_local_value(std::vector<uint8_t>& dest, size_t index) {
     write_numeric_value(dest, m_timestamps[index]);
-    write_numeric_value(dest, m_timestamp_encodings);
+    write_numeric_value(dest, m_timestamp_encodings[index]);
 }
 
 void DateStringColumnWriter::combine(BaseColumnWriter* writer_base) {
@@ -223,7 +219,6 @@ void DateStringColumnWriter::combine(BaseColumnWriter* writer_base) {
             writer->m_timestamp_encodings.begin(),
             writer->m_timestamp_encodings.end()
     );
-    delete writer_base;
 }
 
 void DateStringColumnWriter::store(ZstdCompressor& compressor) {
@@ -257,7 +252,6 @@ void FloatDateStringColumnWriter::combine(BaseColumnWriter* writer_base) {
     FloatDateStringColumnWriter* writer = (FloatDateStringColumnWriter*)writer_base;
     m_timestamps
             .insert(m_timestamps.end(), writer->m_timestamps.begin(), writer->m_timestamps.end());
-    delete writer_base;
 }
 
 void FloatDateStringColumnWriter::store(ZstdCompressor& compressor) {
@@ -364,7 +358,6 @@ void TruncatedObjectColumnWriter::combine(BaseColumnWriter* writer_base) {
     TruncatedObjectColumnWriter* writer = (TruncatedObjectColumnWriter*)writer_base;
     m_values.merge(writer->m_values);
     m_schemas.merge(writer->m_schemas);
-    delete writer_base;
 }
 
 void TruncatedObjectColumnWriter::store(ZstdCompressor& compressor) {

@@ -104,18 +104,18 @@ void SchemaWriter::update_schema(
         } else {
             new_columns_map[column_id] = writer;
         }
-
-        for (TruncatedObjectColumnWriter* writer : new_truncated_columns) {
-            writer->local_merge_column_values(m_num_messages);
-        }
-
-        for (BaseColumnWriter* writer : columns_to_delete) {
-            delete writer;
-        }
     }
 
     for (auto const& pair : new_columns_map) {
         new_columns.push_back(pair.second);
+    }
+
+    for (TruncatedObjectColumnWriter* writer : new_truncated_columns) {
+        writer->local_merge_column_values(m_num_messages);
+    }
+
+    for (BaseColumnWriter* writer : columns_to_delete) {
+        delete writer;
     }
 
     m_columns = std::move(new_columns);
