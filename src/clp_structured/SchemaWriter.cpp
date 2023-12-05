@@ -55,26 +55,6 @@ SchemaWriter::~SchemaWriter() {
 }
 
 void SchemaWriter::combine(SchemaWriter* writer) {
-    if (m_columns.size() != writer->m_columns.size()) {
-        std::cout << m_path << " incosistent" << std::endl;
-        int max = m_columns.size() > writer->m_columns.size() ? m_columns.size()
-                                                              : writer->m_columns.size();
-        for (int i = 0; i < max; ++i) {
-            if (i < m_columns.size()) {
-                std::cout << "lhs " << m_columns[i]->get_id() << " " << m_columns[i]->get_name()
-                          << " ";
-            }
-
-            if (i < writer->m_columns.size()) {
-                std::cout << "rhs " << writer->m_columns[i]->get_id() << " "
-                          << writer->m_columns[i]->get_name();
-            }
-            std::cout << std::endl;
-        }
-        delete writer;
-        delete writer;
-    }
-
     for (size_t i = 0; i < m_columns.size(); ++i) {
         m_columns[i]->combine(writer->m_columns[i]);
     }

@@ -304,11 +304,11 @@ void JsonParser::store() {
     // necessary for archive packing
     m_archive_writer->close();
 
-    double tot_records = m_archive_writer->get_num_records();
-    size_t count_before_trunc = 0;
+    // double tot_records = m_archive_writer->get_num_records();
+    // size_t count_before_trunc = 0;
     size_t count_after_trunc = 0;
     for (auto node : m_schema_tree->get_nodes()) {
-        if (node->get_type() != NodeType::TRUNCATEDOBJECT
+        /*if (node->get_type() != NodeType::TRUNCATEDOBJECT
             && node->get_type() != NodeType::TRUNCATEDCHILDREN)
         {
             count_before_trunc += 1;
@@ -319,14 +319,14 @@ void JsonParser::store() {
         if (node->get_type() == NodeType::VARVALUE) {
             std::cout << "VARVALUE " << get_full_path(m_schema_tree, node) << " <"
                       << get_type_name(node->get_type()) << ">" << std::endl;
-        }
+        }*/
         if (node->get_state() != NodeValueState::TRUNCATED) {
             count_after_trunc += 1;
         }
     }
 
-    std::cout << "Nodes Before Trunc: " << count_before_trunc
-              << " -> Nodes After Trunc: " << count_after_trunc << std::endl;
+    // std::cout << "Nodes Before Trunc: " << count_before_trunc
+    //           << " -> Nodes After Trunc: " << count_after_trunc << std::endl;
     /*for (auto node : m_schema_tree->get_nodes()) {
         if (node->get_state() == NodeValueState::TRUNCATED) {
             std::cout << (node->get_count() / tot_records) << " " << get_full_path(m_schema_tree,
