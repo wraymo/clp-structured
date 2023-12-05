@@ -295,6 +295,8 @@ public:
 
     void merge_column(BaseColumnWriter* writer, std::shared_ptr<SchemaTree> global_tree);
 
+    void merge_null_column(int32_t id, std::shared_ptr<SchemaTree> global_tree);
+
     void local_merge_column_values(uint64_t num_messsages);
 
     void combine(BaseColumnWriter* writer) override;

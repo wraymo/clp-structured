@@ -8,11 +8,10 @@ static void write_numeric_value(std::vector<uint8_t>& target, T value) {
     memcpy(addr, &value, sizeof(T));
 }
 
-template <typename T>
-static void write_numeric_values(std::vector<uint8_t>& target, T* value, size_t size) {
-    target.resize(target.size() + sizeof(T) * size);
-    uint8_t* addr = &target.back() - sizeof(T) * size + 1;
-    memcpy(addr, &value, sizeof(T) * size);
+static void write_numeric_values(std::vector<uint8_t>& target, int64_t* value, size_t size) {
+    target.resize(target.size() + sizeof(int64_t) * size);
+    uint8_t* addr = &target.back() - sizeof(int64_t) * size + 1;
+    memcpy(addr, &value, sizeof(int64_t) * size);
 }
 
 static void write_string(std::vector<uint8_t>& target, std::string const& value) {
@@ -43,7 +42,7 @@ void Int64ColumnWriter::write_local_value(
 }
 
 void Int64ColumnWriter::combine(BaseColumnWriter* writer_base) {
-    Int64ColumnWriter* writer = (Int64ColumnWriter*)writer_base;
+    Int64ColumnWriter* writer = dynamic_cast<Int64ColumnWriter*>(writer_base);
     m_values.insert(m_values.end(), writer->m_values.begin(), writer->m_values.end());
 }
 
@@ -72,7 +71,7 @@ void FloatColumnWriter::write_local_value(
 }
 
 void FloatColumnWriter::combine(BaseColumnWriter* writer_base) {
-    FloatColumnWriter* writer = (FloatColumnWriter*)writer_base;
+    FloatColumnWriter* writer = dynamic_cast<FloatColumnWriter*>(writer_base);
     m_values.insert(m_values.end(), writer->m_values.begin(), writer->m_values.end());
 }
 
@@ -101,7 +100,7 @@ void BooleanColumnWriter::write_local_value(
 }
 
 void BooleanColumnWriter::combine(BaseColumnWriter* writer_base) {
-    BooleanColumnWriter* writer = (BooleanColumnWriter*)writer_base;
+    BooleanColumnWriter* writer = dynamic_cast<BooleanColumnWriter*>(writer_base);
     m_values.insert(m_values.end(), writer->m_values.begin(), writer->m_values.end());
 }
 
@@ -150,12 +149,12 @@ void ClpStringColumnWriter::write_local_value(
     write_numeric_value(dest, encoded_log_type);
     if (size > 0) {
         total_bytes += sizeof(int64_t) * size;
-        write_numeric_values<int64_t>(dest, &m_encoded_vars.data()[encoded_offset], size);
+        write_numeric_values(dest, &m_encoded_vars.data()[encoded_offset], size);
     }
 }
 
 void ClpStringColumnWriter::combine(BaseColumnWriter* writer_base) {
-    ClpStringColumnWriter* writer = (ClpStringColumnWriter*)writer_base;
+    ClpStringColumnWriter* writer = dynamic_cast<ClpStringColumnWriter*>(writer_base);
     size_t current_vars_size = m_encoded_vars.size();
     m_encoded_vars.insert(
             m_encoded_vars.end(),
@@ -206,7 +205,7 @@ void VariableStringColumnWriter::write_local_value(
 }
 
 void VariableStringColumnWriter::combine(BaseColumnWriter* writer_base) {
-    VariableStringColumnWriter* writer = (VariableStringColumnWriter*)writer_base;
+    VariableStringColumnWriter* writer = dynamic_cast<VariableStringColumnWriter*>(writer_base);
     m_variables.insert(m_variables.end(), writer->m_variables.begin(), writer->m_variables.end());
 }
 
@@ -242,7 +241,7 @@ void DateStringColumnWriter::write_local_value(
 }
 
 void DateStringColumnWriter::combine(BaseColumnWriter* writer_base) {
-    DateStringColumnWriter* writer = (DateStringColumnWriter*)writer_base;
+    DateStringColumnWriter* writer = dynamic_cast<DateStringColumnWriter*>(writer_base);
     m_timestamps
             .insert(m_timestamps.end(), writer->m_timestamps.begin(), writer->m_timestamps.end());
     m_timestamp_encodings.insert(
@@ -285,7 +284,7 @@ void FloatDateStringColumnWriter::write_local_value(
 }
 
 void FloatDateStringColumnWriter::combine(BaseColumnWriter* writer_base) {
-    FloatDateStringColumnWriter* writer = (FloatDateStringColumnWriter*)writer_base;
+    FloatDateStringColumnWriter* writer = dynamic_cast<FloatDateStringColumnWriter*>(writer_base);
     m_timestamps
             .insert(m_timestamps.end(), writer->m_timestamps.begin(), writer->m_timestamps.end());
 }
@@ -346,6 +345,33 @@ void TruncatedObjectColumnWriter::merge_column(
     }
 }
 
+void TruncatedObjectColumnWriter::merge_null_column(
+        int32_t id,
+        std::shared_ptr<SchemaTree> global_tree
+) {
+    auto const& global_node = global_tree->get_node(id);
+    int32_t parent_id = global_node->get_parent_id();
+    if (parent_id != -1 && m_global_id_to_local.find(parent_id) == m_global_id_to_local.end()) {
+        if (global_tree->get_node(parent_id)->get_state() == NodeValueState::TRUNCATED) {
+            merge_column(parent_id, global_tree);
+        }
+    }
+
+    auto it = m_global_id_to_local.find(parent_id);
+    if (it != m_global_id_to_local.end()) {
+        parent_id = it->second;
+    } else {
+        parent_id = -1;
+    }
+
+    int32_t local_id = m_local_tree.add_node(
+            parent_id,
+            global_node->get_type(),
+            global_node->get_key_name()
+    );
+    m_local_id_to_column[local_id] = nullptr;
+}
+
 void TruncatedObjectColumnWriter::local_merge_column_values(uint64_t num_messages) {
     m_schemas.resize(num_messages);
     m_values.resize(num_messages);
@@ -385,7 +411,9 @@ void TruncatedObjectColumnWriter::visit(
         size_t idx = 0;
         BaseColumnWriter* old_writer = m_local_id_to_column.at(node->get_id());
         for (auto it = m_values.begin(); it != m_values.end(); ++it) {
-            old_writer->write_local_value(*it, idx, m_num_bytes);
+            if (old_writer != nullptr) {
+                old_writer->write_local_value(*it, idx, m_num_bytes);
+            }
             ++idx;
         }
     }
@@ -396,7 +424,7 @@ void TruncatedObjectColumnWriter::visit(
 }
 
 void TruncatedObjectColumnWriter::combine(BaseColumnWriter* writer_base) {
-    TruncatedObjectColumnWriter* writer = (TruncatedObjectColumnWriter*)writer_base;
+    TruncatedObjectColumnWriter* writer = dynamic_cast<TruncatedObjectColumnWriter*>(writer_base);
     m_values.merge(writer->m_values);
     m_schemas.merge(writer->m_schemas);
     m_num_bytes += writer->m_num_bytes;

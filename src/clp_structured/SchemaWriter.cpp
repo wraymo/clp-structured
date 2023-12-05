@@ -55,6 +55,26 @@ SchemaWriter::~SchemaWriter() {
 }
 
 void SchemaWriter::combine(SchemaWriter* writer) {
+    if (m_columns.size() != writer->m_columns.size()) {
+        std::cout << m_path << " incosistent" << std::endl;
+        int max = m_columns.size() > writer->m_columns.size() ? m_columns.size()
+                                                              : writer->m_columns.size();
+        for (int i = 0; i < max; ++i) {
+            if (i < m_columns.size()) {
+                std::cout << "lhs " << m_columns[i]->get_id() << " " << m_columns[i]->get_name()
+                          << " ";
+            }
+
+            if (i < writer->m_columns.size()) {
+                std::cout << "rhs " << writer->m_columns[i]->get_id() << " "
+                          << writer->m_columns[i]->get_name();
+            }
+            std::cout << std::endl;
+        }
+        delete writer;
+        delete writer;
+    }
+
     for (size_t i = 0; i < m_columns.size(); ++i) {
         m_columns[i]->combine(writer->m_columns[i]);
     }
@@ -70,6 +90,26 @@ void SchemaWriter::update_schema(
     std::vector<TruncatedObjectColumnWriter*> new_truncated_columns;
     std::vector<BaseColumnWriter*> columns_to_delete;
     std::map<int32_t, BaseColumnWriter*> new_columns_map;
+
+    for (auto& update : updates) {
+        if (tree->get_node(update.first)->get_type() == NodeType::NULLVALUE) {
+            auto it = new_columns_map.find(update.second);
+            TruncatedObjectColumnWriter* new_writer = nullptr;
+            if (it == new_columns_map.end()) {
+                new_writer = new TruncatedObjectColumnWriter(
+                        tree->get_node(update.second)->get_key_name(),
+                        update.second
+                );
+
+                new_columns_map[update.second] = new_writer;
+                new_truncated_columns.push_back(new_writer);
+            } else {
+                new_writer = static_cast<TruncatedObjectColumnWriter*>(it->second);
+            }
+            new_writer->merge_null_column(update.first, tree);
+        }
+    }
+
     for (BaseColumnWriter* writer : m_columns) {
         int32_t column_id = writer->get_id();
         int32_t new_column_id = -1;
