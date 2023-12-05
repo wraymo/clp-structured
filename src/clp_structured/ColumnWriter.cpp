@@ -375,8 +375,7 @@ void TruncatedObjectColumnWriter::merge_null_column(
 void TruncatedObjectColumnWriter::local_merge_column_values(uint64_t num_messages) {
     m_schemas.resize(num_messages);
     m_values.resize(num_messages);
-    std::vector<uint8_t> schema;
-    schema.push_back(0);
+    std::vector<uint8_t> schema({0, 0});
 
     std::set<int32_t> visited;
     for (auto const& node : m_local_tree.get_nodes()) {
@@ -387,6 +386,8 @@ void TruncatedObjectColumnWriter::local_merge_column_values(uint64_t num_message
         s = schema;
         m_num_bytes += schema.size();
     }
+
+    memcpy(schema.data(), &m_num_nodes, sizeof(m_num_nodes));
 }
 
 void TruncatedObjectColumnWriter::visit(
@@ -400,9 +401,9 @@ void TruncatedObjectColumnWriter::visit(
 
     visited.insert(node->get_id());
 
-    // this assumes that each subtree is at most 256 nodes at a time,
+    // this assumes that each subtree is at most 65536 nodes at a time,
     // which is probably unsafe, but good enough for now
-    schema[0] += 1;
+    m_num_nodes += 1;
     uint8_t node_type = static_cast<uint8_t>(node->get_type());
     schema.push_back(node_type);
     write_string(schema, node->get_key_name());

@@ -282,7 +282,8 @@ public:
     // Constructor
     explicit TruncatedObjectColumnWriter(std::string name, int32_t id)
             : BaseColumnWriter(std::move(name), id),
-              m_num_bytes(0) {}
+              m_num_bytes(0),
+              m_num_nodes(0) {}
 
     // Destructor
     ~TruncatedObjectColumnWriter() override = default;
@@ -318,6 +319,7 @@ private:
     std::list<std::vector<uint8_t>> m_values;
     std::list<std::vector<uint8_t>> m_schemas;
     size_t m_num_bytes;
+    uint16_t m_num_nodes;
 };
 
 }  // namespace clp_structured
