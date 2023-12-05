@@ -456,8 +456,8 @@ void TruncatedObjectColumnWriter::visit(
 
 void TruncatedObjectColumnWriter::combine(BaseColumnWriter* writer_base) {
     TruncatedObjectColumnWriter* writer = dynamic_cast<TruncatedObjectColumnWriter*>(writer_base);
-    m_values.merge(writer->m_values);
-    m_schemas.merge(writer->m_schemas);
+    m_values.splice(m_values.end(), writer->m_values);
+    m_schemas.splice(m_schemas.end(), writer->m_schemas);
     m_num_bytes += writer->m_num_bytes;
 }
 
