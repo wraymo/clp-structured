@@ -11,7 +11,7 @@ static void write_numeric_value(std::vector<uint8_t>& target, T value) {
 static void write_numeric_values(std::vector<uint8_t>& target, int64_t* value, size_t size) {
     target.resize(target.size() + sizeof(int64_t) * size);
     uint8_t* addr = &target.back() - sizeof(int64_t) * size + 1;
-    memcpy(addr, &value, sizeof(int64_t) * size);
+    memcpy(addr, value, sizeof(int64_t) * size);
 }
 
 static void write_string(std::vector<uint8_t>& target, std::string const& value) {
