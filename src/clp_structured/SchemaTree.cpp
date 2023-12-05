@@ -49,9 +49,9 @@ int32_t SchemaTree::add_node_decompression(
         std::string const& key
 ) {
     auto node = std::make_shared<SchemaNode>(parent_node_id, node_id, key, type);
-    m_nodes[node_id] = node;
+    m_nodes.at(node_id) = node;
     if (parent_node_id >= 0) {
-        m_nodes[parent_node_id]->add_child(node_id);
+        m_nodes.at(parent_node_id)->add_child(node_id);
     }
 
     return node->get_id();
@@ -114,6 +114,10 @@ std::vector<std::pair<int32_t, int32_t>> SchemaTree::modify_nodes_based_on_frequ
                         NodeType::TRUNCATEDOBJECT,
                         node->get_key_name()
                 );
+                updates.push_back({*it, parent_replacement_id});
+            } else if (this->get_node(node->get_parent_id())->get_state() == NodeValueState::TRUNCATED && node->get_type() == NodeType::OBJECT)
+            {
+                updates.push_back({*it, parent_replacement_id});
             }
         } else if (node->get_state() == NodeValueState::CARDINALITY_ONE) {
             int32_t var_node_id = add_node(*it, NodeType::VARVALUE, node->get_string_var_value());

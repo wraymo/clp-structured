@@ -372,6 +372,36 @@ void TruncatedObjectColumnWriter::merge_null_column(
     m_local_id_to_column[local_id] = nullptr;
 }
 
+void TruncatedObjectColumnWriter::merge_object_column(
+        int32_t id,
+        std::shared_ptr<SchemaTree> global_tree
+) {
+    auto const& global_node = global_tree->get_node(id);
+    int32_t parent_id = global_node->get_parent_id();
+    bool parent_truncated = false;
+    if (parent_id != -1 && m_global_id_to_local.find(parent_id) == m_global_id_to_local.end()) {
+        if (global_tree->get_node(parent_id)->get_state() == NodeValueState::TRUNCATED) {
+            merge_column(parent_id, global_tree);
+            parent_truncated = true;
+        }
+    }
+
+    auto it = m_global_id_to_local.find(parent_id);
+    if (it != m_global_id_to_local.end()) {
+        parent_id = it->second;
+    } else {
+        parent_id = -1;
+    }
+
+    if (parent_truncated) {
+        int32_t local_id = m_local_tree.add_node(
+                parent_id,
+                global_node->get_type(),
+                global_node->get_key_name()
+        );
+    }
+}
+
 void TruncatedObjectColumnWriter::local_merge_column_values(uint64_t num_messages) {
     m_schemas.resize(num_messages);
     m_values.resize(num_messages);

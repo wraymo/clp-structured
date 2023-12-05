@@ -98,7 +98,8 @@ namespace clp_structured { namespace search {
         bool matched = false;
         if (column->is_pure_wildcard()) {
             for (auto& node : m_tree->get_nodes()) {
-                if (column->matches_type(node_to_literal_type(node->get_type()))) {
+                if (node != nullptr && column->matches_type(node_to_literal_type(node->get_type())))
+                {
                     // column_to_descriptor_[node->get_id()].insert(column);
                     //  At least some node matches; break
                     //  Don't use column_to_descriptor_ for pure wildcard columns anyway, so
