@@ -114,7 +114,6 @@ add_library(clp-s-archive
         src/clp_structured/ZstdDecompressor.cpp
         src/clp_structured/ZstdDecompressor.hpp
         submodules/date/include/date/date.h
-
 )
 
 target_link_libraries(clp-s-archive PUBLIC simdjson spdlog nlohmann_json ZStd::ZStd

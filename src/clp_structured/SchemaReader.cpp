@@ -278,7 +278,8 @@ void SchemaReader::generate_json_template(int32_t id) {
             }
             case NodeType::VARSTRING: {
                 if (child_node->get_children_ids().empty()) {
-                    m_json_serializer->add_op(JsonSerializer::Op::AddStringField, child_global_id);
+                    m_json_serializer->add_op(JsonSerializer::Op::AddStringField);
+                    m_reordered_columns.push_back(m_column_map[child_global_id]);
                 } else {
                 }
                 break;
