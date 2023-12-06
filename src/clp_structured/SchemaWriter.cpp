@@ -8,9 +8,13 @@ void SchemaWriter::open(std::string path, int compression_level) {
     m_compression_level = compression_level;
 }
 
+void SchemaWriter::open(int compression_level) {
+    m_compression_level = compression_level;
+}
+
 void SchemaWriter::close() {
-    m_compressor.close();
-    m_file_writer.close();
+    //    m_compressor.close();
+    //    m_file_writer.close();
 
     for (auto i : m_columns) {
         delete i;
@@ -37,15 +41,17 @@ size_t SchemaWriter::append_message(ParsedMessage& message) {
     return total_size;
 }
 
-void SchemaWriter::store() {
-    m_file_writer.open(m_path, FileWriter::OpenMode::CreateForWriting);
-    m_file_writer.write_numeric_value(m_num_messages);
-    m_compressor.open(m_file_writer, m_compression_level);
+void SchemaWriter::store(FileWriter& file_writer) {
+    //    m_file_writer.open(m_path, FileWriter::OpenMode::CreateForWriting);
+    //    m_file_writer.write_numeric_value(m_num_messages);
+    file_writer.write_numeric_value(m_num_messages);
+    m_compressor.open(file_writer, m_compression_level);
 
     for (auto& writer : m_columns) {
         writer->store(m_compressor);
-        //        compressor_.Write(writer->GetData(), writer->GetSize());
     }
+
+    m_compressor.close();
 }
 
 SchemaWriter::~SchemaWriter() {

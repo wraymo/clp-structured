@@ -48,6 +48,20 @@ void ArchiveWriter::close() {
     m_array_dict->close();
     m_timestamp_dict->close_local();
 
+    FileWriter table_file_writer;
+    table_file_writer.open(
+            m_encoded_messages_dir + "/table",
+            FileWriter::OpenMode::CreateForWriting
+    );
+
+    FileWriter metadata_file_writer;
+    metadata_file_writer.open(
+            m_encoded_messages_dir + "/metadata",
+            FileWriter::OpenMode::CreateForWriting
+    );
+    ZstdCompressor metadata_compressor;
+    metadata_compressor.open(metadata_file_writer, m_compression_level);
+
     std::map<int32_t, std::pair<int32_t, std::vector<std::pair<int32_t, int32_t>>>>
             schema_id_to_schema_changes;
     for (auto it = m_schema_map->schema_map_begin(); it != m_schema_map->schema_map_end(); it++) {
@@ -82,31 +96,43 @@ void ArchiveWriter::close() {
             i.second->update_schema(m_schema_tree, change_it->second.second);
         } else {
             m_schema_map->mark_used(schema_id);
-            i.second->open(
-                    m_encoded_messages_dir + "/" + std::to_string(schema_id),
-                    m_compression_level
-            );
-            i.second->store();
+            //            i.second->open(
+            //                    m_encoded_messages_dir + "/" + std::to_string(schema_id),
+            //                    m_compression_level
+            //            );
+            size_t pos = table_file_writer.get_pos();
+            metadata_compressor.write_numeric_value(schema_id);
+            metadata_compressor.write_numeric_value(pos);
+            i.second->open(m_compression_level);
+            i.second->store(table_file_writer);
             i.second->close();
             delete i.second;
         }
     }
 
-    for (auto it = updated_schema_id_to_writer.begin(); it != updated_schema_id_to_writer.end();
-         ++it)
-    {
-        auto sit = it->second.begin();
+    for (auto& it : updated_schema_id_to_writer) {
+        auto sit = it.second.begin();
         SchemaWriter* writer = *sit;
         ++sit;
-        for (; sit != it->second.end(); ++sit) {
+        for (; sit != it.second.end(); ++sit) {
             writer->combine(*sit);
         }
-        m_schema_map->mark_used(it->first);
-        writer->open(m_encoded_messages_dir + "/" + std::to_string(it->first), m_compression_level);
-        writer->store();
+        m_schema_map->mark_used(it.first);
+        //        writer->open(m_encoded_messages_dir + "/" + std::to_string(it.first),
+        //        m_compression_level);
+
+        size_t pos = table_file_writer.get_pos();
+        metadata_compressor.write_numeric_value(it.first);
+        metadata_compressor.write_numeric_value(pos);
+        writer->open(m_compression_level);
+        writer->store(table_file_writer);
         writer->close();
         delete writer;
     }
+
+    table_file_writer.close();
+    metadata_compressor.close();
+    metadata_file_writer.close();
 
     m_schema_id_to_writer.clear();
     m_encoded_message_size = 0UL;

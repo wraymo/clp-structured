@@ -25,6 +25,8 @@ public:
      */
     void open(std::string path, int compression_level);
 
+    void open(int compression_level);
+
     /**
      * Appends a column to the schema writer.
      * @param column_writer
@@ -46,7 +48,7 @@ public:
     /**
      * Stores the schema to disk.
      */
-    void store();
+    void store(FileWriter& file_writer);
 
     /**
      * Closes the schema writer.
@@ -63,7 +65,7 @@ public:
     );
 
 private:
-    FileWriter m_file_writer;
+    //    FileWriter m_file_writer;
     ZstdCompressor m_compressor;
     std::string m_path;
     int m_compression_level{};
